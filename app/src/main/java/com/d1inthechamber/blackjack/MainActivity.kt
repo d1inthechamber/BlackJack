@@ -3,7 +3,6 @@ package com.d1inthechamber.blackjack
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -14,7 +13,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.random.Random
 
 data class Card(val rank: String, val suit: String) {
     val value: Int get() = when (rank) { "A" -> 11; "K", "Q", "J" -> 10; else -> rank.toInt() }
@@ -24,7 +22,7 @@ data class Card(val rank: String, val suit: String) {
 class Deck {
     private val cards = mutableListOf<Card>()
     init { reset() }
-    fun reset() { cards.clear(); listOf("♠", "♥", "♦", "♣").forEach { s -> (2..10).forEach { r -> cards += Card(r.toString(), s) }; listOf("J","Q","K","A").forEach { r -> cards += Card(r, s) } }; cards.shuffle() }
+    fun reset() { cards.clear(); listOf("♠", "♥", "♦", "♣").forEach { s -> (2..10).forEach { r -> cards += Card(r.toString(), s) }; listOf("J", "Q", "K", "A").forEach { r -> cards += Card(r, s) } }; cards.shuffle() }
     fun draw(): Card { if (cards.size < 15) reset(); return cards.removeAt(cards.lastIndex) }
 }
 
@@ -61,14 +59,14 @@ class MainActivity : ComponentActivity() {
         Spacer(Modifier.height(12.dp)); Hand("YOU  ${if (game.player.isNotEmpty()) score(game.player) else ""}", game.player)
         Spacer(Modifier.weight(1f))
         Text("Bet: ${game.bet} chips", color = Color.White, fontSize = 18.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(10,25,50,100).forEach { n -> Button(onClick={game.addBet(n)}, enabled=!game.inRound && game.bet+n<=game.bankroll) { Text("+$n") } }; OutlinedButton(onClick={game.clearBet}, enabled=!game.inRound) { Text("Clear") } }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(10,25,50,100).forEach { n -> Button(onClick={game.addBet(n)}, enabled=!game.inRound && game.bet+n<=game.bankroll) { Text("+$n") } }; OutlinedButton(onClick={game.clearBet()}, enabled=!game.inRound) { Text("Clear") } }
         Spacer(Modifier.height(8.dp)); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick={game.deal}, enabled=!game.inRound && game.bet>0) { Text("DEAL") }
-            Button(onClick={game.hit}, enabled=game.inRound && !game.finished) { Text("HIT") }
-            Button(onClick={game.stand}, enabled=game.inRound && !game.finished) { Text("STAND") }
-            Button(onClick={game.doubleDown}, enabled=game.inRound && !game.finished && game.player.size==2 && game.bankroll>=game.bet) { Text("DOUBLE") }
+            Button(onClick={game.deal()}, enabled=!game.inRound && game.bet>0) { Text("DEAL") }
+            Button(onClick={game.hit()}, enabled=game.inRound && !game.finished) { Text("HIT") }
+            Button(onClick={game.stand()}, enabled=game.inRound && !game.finished) { Text("STAND") }
+            Button(onClick={game.doubleDown()}, enabled=game.inRound && !game.finished && game.player.size==2 && game.bankroll>=game.bet) { Text("DOUBLE") }
         }
-        Spacer(Modifier.height(8.dp)); if (game.finished) Button(onClick={game.newRound}) { Text("NEW ROUND") }
+        Spacer(Modifier.height(8.dp)); if (game.finished) Button(onClick={game.newRound()}) { Text("NEW ROUND") }
     } } }
 }
 
