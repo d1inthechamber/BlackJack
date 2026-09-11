@@ -10,8 +10,8 @@ import androidx.compose.animation.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,14 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-private val Felt = Color(0xFF071A12)
-private val Felt2 = Color(0xFF123A27)
-private val Gold = Color(0xFFFFD54F)
-private val GoldDeep = Color(0xFFC79A20)
-private val CardRed = Color(0xFFD32F2F)
-private val DeckBlue = Color(0xFF173B70)
-private val DeckBlue2 = Color(0xFF245A9B)
 
 data class Card(val rank: String, val suit: String) {
     val value: Int get() = when (rank) { "A" -> 11; "K", "Q", "J" -> 10; else -> rank.toInt() }
@@ -88,12 +80,7 @@ class BlackjackState {
     private var deck = Deck()
     val deckRemaining: Int get() = deck.remaining()
 
-    private fun drawCard(): Card {
-        val card = deck.draw()
-        drawPulse++
-        return card
-    }
-
+    private fun drawCard(): Card { val card = deck.draw(); drawPulse++; return card }
     fun addBet(amount: Int) { if (!inRound && bet + amount <= bankroll) bet += amount }
     fun clearBet() { if (!inRound) bet = 0 }
 
@@ -103,86 +90,47 @@ class BlackjackState {
         val hand = PlayerHand(mutableListOf(drawCard(), drawCard()), bet)
         hands = listOf(hand)
         dealer = listOf(drawCard(), drawCard())
-        activeHand = 0
-        inRound = true
-        finished = false
-        message = "Your move"
+        activeHand = 0; inRound = true; finished = false; message = "Your move"
         if (blackjack(hand.cards)) finishRound()
     }
-
     fun hit() {
         if (!canAct()) return
-        val hand = hands[activeHand]
-        hand.cards += drawCard()
-        hands = hands.toList()
+        val hand = hands[activeHand]; hand.cards += drawCard(); hands = hands.toList()
         if (hand.total() >= 21) finishActiveHand()
     }
-
     fun stand() {
         if (!canAct()) return
-        hands[activeHand].finished = true
-        hands = hands.toList()
-        advanceOrFinish()
+        hands[activeHand].finished = true; hands = hands.toList(); advanceOrFinish()
     }
-
     fun doubleDown() {
         if (!canAct() || hands[activeHand].cards.size != 2) return
-        val hand = hands[activeHand]
-        if (bankroll < hand.wager) return
-        bankroll -= hand.wager
-        hand.wager *= 2
-        hand.doubled = true
-        hand.cards += drawCard()
-        hand.finished = true
-        hands = hands.toList()
-        advanceOrFinish()
+        val hand = hands[activeHand]; if (bankroll < hand.wager) return
+        bankroll -= hand.wager; hand.wager *= 2; hand.doubled = true
+        hand.cards += drawCard(); hand.finished = true; hands = hands.toList(); advanceOrFinish()
     }
-
     fun split() {
         if (!canAct() || !canSplit()) return
-        val original = hands[activeHand]
-        if (bankroll < original.wager) return
-        bankroll -= original.wager
+        val original = hands[activeHand]; bankroll -= original.wager
         val first = PlayerHand(mutableListOf(original.cards[0], drawCard()), original.wager)
         val second = PlayerHand(mutableListOf(original.cards[1], drawCard()), original.wager)
-        val updated = hands.toMutableList()
-        updated[activeHand] = first
-        updated.add(activeHand + 1, second)
-        hands = updated
-        message = "Split! Play hand ${activeHand + 1}"
-        if (first.cards[0].rank == "A") {
-            first.finished = true
-            second.finished = true
-            advanceOrFinish()
-        }
+        val updated = hands.toMutableList(); updated[activeHand] = first; updated.add(activeHand + 1, second)
+        hands = updated; message = "Split! Play hand ${activeHand + 1}"
+        if (first.cards[0].rank == "A") { first.finished = true; second.finished = true; advanceOrFinish() }
     }
-
     fun canSplit(): Boolean {
         if (!canAct() || hands[activeHand].cards.size != 2) return false
         return isPair(hands[activeHand].cards) && bankroll >= hands[activeHand].wager
     }
-
     private fun canAct() = inRound && !finished && activeHand in hands.indices && !hands[activeHand].finished
-
-    private fun finishActiveHand() {
-        hands[activeHand].finished = true
-        hands = hands.toList()
-        advanceOrFinish()
-    }
-
+    private fun finishActiveHand() { hands[activeHand].finished = true; hands = hands.toList(); advanceOrFinish() }
     private fun advanceOrFinish() {
         val next = hands.indexOfFirst { !it.finished }
-        if (next >= 0) {
-            activeHand = next
-            message = "Your move — hand ${next + 1} of ${hands.size}"
-        } else finishRound()
+        if (next >= 0) { activeHand = next; message = "Your move — hand ${next + 1} of ${hands.size}" } else finishRound()
     }
-
     private fun finishRound() {
         while (score(dealer) < 17) dealer = dealer + drawCard()
         hands.forEach { hand ->
-            val p = hand.total()
-            val d = score(dealer)
+            val p = hand.total(); val d = score(dealer)
             when {
                 blackjack(hand.cards) && !blackjack(dealer) -> bankroll += (hand.wager * 2.5).toInt()
                 p > 21 -> Unit
@@ -200,82 +148,54 @@ class BlackjackState {
             hands.all { it.total() > 21 } -> "All hands busted"
             else -> "Dealer wins"
         }
-        finished = true
-        inRound = false
+        finished = true; inRound = false
     }
-
-    fun newRound() {
-        bet = 0
-        hands = emptyList()
-        dealer = emptyList()
-        message = "Place your bet"
-        finished = false
-        inRound = false
-    }
+    fun newRound() { bet = 0; hands = emptyList(); dealer = emptyList(); message = "Place your bet"; finished = false; inRound = false }
 }
 
 class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent { BlackjackApp() }
-    }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { BlackjackApp() } }
 }
 
 @Composable
 fun BlackjackApp() {
     val game = remember { BlackjackState() }
     MaterialTheme(colorScheme = darkColorScheme(primary = Gold, secondary = GoldDeep)) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Felt2, Felt, Color(0xFF03100A))))
-        ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Felt2, Felt, Color(0xFF03100A))))) {
             val wide = maxWidth >= 600.dp
             val cardWidth = if (wide) 76.dp else 58.dp
             val cardHeight = if (wide) 108.dp else 82.dp
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(horizontal = if (wide) 32.dp else 16.dp, vertical = 12.dp)
-                    .widthIn(max = 1000.dp)
-                    .align(Alignment.TopCenter),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+            Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = if (wide) 32.dp else 16.dp, vertical = 12.dp).widthIn(max = 1000.dp).align(Alignment.TopCenter), horizontalAlignment = Alignment.CenterHorizontally) {
                 Header(game.bankroll, wide)
                 Spacer(Modifier.height(if (wide) 14.dp else 8.dp))
                 DeckDisplay(game.deckRemaining, game.drawPulse, wide)
                 Spacer(Modifier.height(if (wide) 16.dp else 10.dp))
-
                 if (wide) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.weight(1f))
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            MessageBanner(game.message)
-                            Spacer(Modifier.height(12.dp))
-                            game.hands.forEachIndexed { index, hand ->
-                                PlayerHandPanel(index, hand, index == game.activeHand && game.inRound, cardWidth, cardHeight)
-                                if (index < game.hands.lastIndex) Spacer(Modifier.height(8.dp))
-                            }
+                            MessageBanner(game.message); Spacer(Modifier.height(12.dp))
+                            game.hands.forEachIndexed { index, hand -> PlayerHandPanel(index, hand, index == game.activeHand && game.inRound, cardWidth, cardHeight); if (index < game.hands.lastIndex) Spacer(Modifier.height(8.dp)) }
                         }
                     }
                 } else {
                     GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(12.dp))
-                    MessageBanner(game.message)
-                    Spacer(Modifier.height(10.dp))
-                    game.hands.forEachIndexed { index, hand ->
-                        PlayerHandPanel(index, hand, index == game.activeHand && game.inRound, cardWidth, cardHeight)
-                        if (index < game.hands.lastIndex) Spacer(Modifier.height(8.dp))
-                    }
+                    Spacer(Modifier.height(12.dp)); MessageBanner(game.message); Spacer(Modifier.height(10.dp))
+                    game.hands.forEachIndexed { index, hand -> PlayerHandPanel(index, hand, index == game.activeHand && game.inRound, cardWidth, cardHeight); if (index < game.hands.lastIndex) Spacer(Modifier.height(8.dp)) }
                 }
-
-                Spacer(Modifier.weight(1f))
-                BettingPanel(game, wide)
+                Spacer(Modifier.weight(1f)); BettingPanel(game, wide)
             }
         }
     }
 }
+
+private val Felt = Color(0xFF071A12)
+private val Felt2 = Color(0xFF123A27)
+private val Gold = Color(0xFFFFD54F)
+private val GoldDeep = Color(0xFFC79A20)
+private val CardRed = Color(0xFFD32F2F)
+private val DeckBlue = Color(0xFF173B70)
+private val DeckBlue2 = Color(0xFF245A9B)
 
 @Composable
 fun Header(bankroll: Int, wide: Boolean) {
@@ -291,29 +211,13 @@ fun Header(bankroll: Int, wide: Boolean) {
 
 @Composable
 fun DeckDisplay(remaining: Int, pulse: Int, wide: Boolean) {
-    val deckScale by animateFloatAsState(if (pulse > 0) 1.02f else 1f, tween(180), label = "deckPulse")
-    Surface(
-        modifier = Modifier.fillMaxWidth().scale(deckScale),
-        shape = RoundedCornerShape(18.dp),
-        color = Color.Black.copy(alpha = .22f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .28f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = if (wide) 22.dp else 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
+    val deckScale by animateFloatAsState(if (pulse > 0) 1.04f else 1f, tween(180), label = "deckPulse")
+    Surface(modifier = Modifier.fillMaxWidth().scale(deckScale), shape = RoundedCornerShape(18.dp), color = Color.Black.copy(alpha = .22f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .28f))) {
+        Row(modifier = Modifier.padding(horizontal = if (wide) 22.dp else 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             Box(modifier = Modifier.width(if (wide) 62.dp else 48.dp).height(if (wide) 82.dp else 64.dp), contentAlignment = Alignment.Center) {
-                repeat(3) { i ->
-                    Surface(
-                        modifier = Modifier.offset(x = (i * 3).dp, y = (i * 2).dp).fillMaxSize(),
-                        shape = RoundedCornerShape(8.dp),
-                        color = DeckBlue,
-                        shadowElevation = 5.dp
-                    ) {
-                        Box(Modifier.border(2.dp, DeckBlue2, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                            Text("♠", color = Gold.copy(alpha = .85f), fontSize = if (wide) 25.sp else 20.sp)
-                        }
+                repeat(4) { i ->
+                    Surface(modifier = Modifier.offset(x = (i * 3).dp, y = (i * 2).dp).fillMaxSize(), shape = RoundedCornerShape(8.dp), color = DeckBlue, shadowElevation = 5.dp) {
+                        Box(Modifier.border(2.dp, DeckBlue2, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) { Text("♠", color = Gold.copy(alpha = .85f), fontSize = if (wide) 25.sp else 20.sp) }
                     }
                 }
             }
@@ -321,7 +225,7 @@ fun DeckDisplay(remaining: Int, pulse: Int, wide: Boolean) {
             Column {
                 Text("SHOE / DECK", color = Gold, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp, fontSize = 13.sp)
                 Text("$remaining cards remaining", color = Color.White, fontWeight = FontWeight.Bold, fontSize = if (wide) 20.sp else 17.sp)
-                Text("Cards are drawn from the top", color = Color.White.copy(alpha = .58f), fontSize = 11.sp)
+                Text("Draws animate from the shoe", color = Color.White.copy(alpha = .58f), fontSize = 11.sp)
             }
         }
     }
@@ -332,8 +236,7 @@ fun GamePanel(title: String, cards: List<Card>, hideFirst: Boolean, cardWidth: a
     Surface(modifier = modifier.animateContentSize(), shape = RoundedCornerShape(20.dp), color = Color.Black.copy(alpha = .18f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .22f))) {
         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(title, color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-            Spacer(Modifier.height(7.dp))
-            CardsRow(cards, hideFirst, cardWidth, cardHeight)
+            Spacer(Modifier.height(7.dp)); CardsRow(cards, hideFirst, cardWidth, cardHeight)
             if (cards.isNotEmpty()) Text(if (hideFirst) "?" else "Total ${score(cards)}", color = Gold, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         }
     }
@@ -346,11 +249,9 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("HAND ${index + 1}", color = if (active) Gold else Color.White, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(10.dp))
-                Text("${score(hand.cards)} • ${hand.wager} chips", color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
+                Spacer(Modifier.width(10.dp)); Text("${score(hand.cards)} • ${hand.wager} chips", color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
             }
-            Spacer(Modifier.height(6.dp))
-            CardsRow(hand.cards, false, cardWidth, cardHeight)
+            Spacer(Modifier.height(6.dp)); CardsRow(hand.cards, false, cardWidth, cardHeight)
         }
     }
 }
@@ -358,16 +259,12 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
 @Composable
 fun CardsRow(cards: List<Card>, hideFirst: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp) {
     val scroll = rememberScrollState()
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(scroll),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         cards.forEachIndexed { i, card ->
             key("${card}-${i}") {
                 AnimatedVisibility(
                     visible = true,
-                    enter = slideInVertically(initialOffsetY = { -it / 2 }, animationSpec = tween(280)) + fadeIn(tween(220))
+                    enter = slideInVertically(initialOffsetY = { -260 }, animationSpec = tween(420)) + fadeIn(tween(280)) + scaleIn(initialScale = .72f, animationSpec = tween(420))
                 ) {
                     CardView(if (hideFirst && i == 0) "?" else card.toString(), cardWidth, cardHeight)
                 }
@@ -379,7 +276,7 @@ fun CardsRow(cards: List<Card>, hideFirst: Boolean, cardWidth: androidx.compose.
 @Composable
 fun CardView(text: String, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
     val red = text.contains("♥") || text.contains("♦")
-    Surface(shape = RoundedCornerShape(12.dp), color = Color.White, shadowElevation = 10.dp, modifier = Modifier.size(width, height)) {
+    Surface(shape = RoundedCornerShape(12.dp), color = Color.White, shadowElevation = 12.dp, modifier = Modifier.size(width, height)) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.border(2.dp, if (text == "?") GoldDeep else Color.LightGray, RoundedCornerShape(12.dp))) {
             Text(text, fontSize = if (width >= 70.dp) 27.sp else 20.sp, fontWeight = FontWeight.Bold, color = if (red) CardRed else Color(0xFF171717))
         }
@@ -402,9 +299,7 @@ fun BettingPanel(game: BlackjackState, wide: Boolean) {
             Text("BET • ${game.bet} CHIPS", color = Gold, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                listOf(10, 25, 50, 100).forEach { n ->
-                    Button(onClick = { game.addBet(n) }, enabled = !game.inRound && game.bet + n <= game.bankroll, modifier = Modifier.weight(1f)) { Text("+$n", fontSize = if (wide) 14.sp else 12.sp) }
-                }
+                listOf(10, 25, 50, 100).forEach { n -> Button(onClick = { game.addBet(n) }, enabled = !game.inRound && game.bet + n <= game.bankroll, modifier = Modifier.weight(1f)) { Text("+$n", fontSize = if (wide) 14.sp else 12.sp) } }
                 OutlinedButton(onClick = { game.clearBet() }, enabled = !game.inRound) { Text("CLEAR") }
             }
             Spacer(Modifier.height(8.dp))
