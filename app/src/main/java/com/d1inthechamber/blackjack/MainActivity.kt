@@ -165,7 +165,7 @@ class BlackjackState {
     }
     fun canSplit(): Boolean {
         if (!canAct() || hands[activeHand].cards.size != 2) return false
-        return isPair(hands[activeHand].cards) && bankroll >= hands[activeHand].wager
+        return hands.size < 3 && isPair(hands[activeHand].cards) && bankroll >= hands[activeHand].wager
     }
     private fun canAct() = inRound && !dealing && !finished && activeHand in hands.indices && !hands[activeHand].finished
     private fun finishActiveHand() { hands[activeHand].finished = true; hands = hands.toList(); advanceOrFinish() }
@@ -431,7 +431,7 @@ fun BettingPanel(game: BlackjackState, wide: Boolean) {
 }
 
 @Composable
-fun ChipButton(amount: Int, enabled: Boolean, onClick: () -> Unit) {
+fun RowScope.ChipButton(amount: Int, enabled: Boolean, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled, modifier = Modifier.height(42.dp).weight(1f), contentPadding = PaddingValues(0.dp), shape = RoundedCornerShape(50), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF171717), contentColor = Gold)) {
         Text("$amount", fontWeight = FontWeight.Black, fontSize = 12.sp)
     }
