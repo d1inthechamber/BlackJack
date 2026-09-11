@@ -4,15 +4,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,15 +30,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.min
 
 private val Felt = Color(0xFF071A12)
 private val Felt2 = Color(0xFF123A27)
 private val Gold = Color(0xFFFFD54F)
 private val GoldDeep = Color(0xFFC79A20)
 private val CardRed = Color(0xFFD32F2F)
+private val DeckBlue = Color(0xFF173B70)
+private val DeckBlue2 = Color(0xFF245A9B)
 
- data class Card(val rank: String, val suit: String) {
+data class Card(val rank: String, val suit: String) {
     val value: Int get() = when (rank) { "A" -> 11; "K", "Q", "J" -> 10; else -> rank.toInt() }
     override fun toString() = "$rank$suit"
 }
@@ -53,6 +59,7 @@ class Deck {
         if (cards.size < 15) reset()
         return cards.removeAt(cards.lastIndex)
     }
+    fun remaining() = cards.size
 }
 
 fun score(hand: List<Card>): Int {
@@ -77,7 +84,15 @@ class BlackjackState {
     var message by mutableStateOf("Place your bet")
     var inRound by mutableStateOf(false)
     var finished by mutableStateOf(false)
+    var drawPulse by mutableIntStateOf(0)
     private var deck = Deck()
+    val deckRemaining: Int get() = deck.remaining()
+
+    private fun drawCard(): Card {
+        val card = deck.draw()
+        drawPulse++
+        return card
+    }
 
     fun addBet(amount: Int) { if (!inRound && bet + amount <= bankroll) bet += amount }
     fun clearBet() { if (!inRound) bet = 0 }
@@ -85,9 +100,9 @@ class BlackjackState {
     fun deal() {
         if (bet <= 0 || inRound) return
         bankroll -= bet
-        val hand = PlayerHand(mutableListOf(deck.draw(), deck.draw()), bet)
+        val hand = PlayerHand(mutableListOf(drawCard(), drawCard()), bet)
         hands = listOf(hand)
-        dealer = listOf(deck.draw(), deck.draw())
+        dealer = listOf(drawCard(), drawCard())
         activeHand = 0
         inRound = true
         finished = false
@@ -98,7 +113,7 @@ class BlackjackState {
     fun hit() {
         if (!canAct()) return
         val hand = hands[activeHand]
-        hand.cards += deck.draw()
+        hand.cards += drawCard()
         hands = hands.toList()
         if (hand.total() >= 21) finishActiveHand()
     }
@@ -117,7 +132,7 @@ class BlackjackState {
         bankroll -= hand.wager
         hand.wager *= 2
         hand.doubled = true
-        hand.cards += deck.draw()
+        hand.cards += drawCard()
         hand.finished = true
         hands = hands.toList()
         advanceOrFinish()
@@ -128,8 +143,8 @@ class BlackjackState {
         val original = hands[activeHand]
         if (bankroll < original.wager) return
         bankroll -= original.wager
-        val first = PlayerHand(mutableListOf(original.cards[0], deck.draw()), original.wager)
-        val second = PlayerHand(mutableListOf(original.cards[1], deck.draw()), original.wager)
+        val first = PlayerHand(mutableListOf(original.cards[0], drawCard()), original.wager)
+        val second = PlayerHand(mutableListOf(original.cards[1], drawCard()), original.wager)
         val updated = hands.toMutableList()
         updated[activeHand] = first
         updated.add(activeHand + 1, second)
@@ -164,14 +179,12 @@ class BlackjackState {
     }
 
     private fun finishRound() {
-        while (score(dealer) < 17) dealer = dealer + deck.draw()
+        while (score(dealer) < 17) dealer = dealer + drawCard()
         hands.forEach { hand ->
             val p = hand.total()
             val d = score(dealer)
             when {
-                blackjack(hand.cards) && !blackjack(dealer) -> {
-                    bankroll += (hand.wager * 2.5).toInt()
-                }
+                blackjack(hand.cards) && !blackjack(dealer) -> bankroll += (hand.wager * 2.5).toInt()
                 p > 21 -> Unit
                 blackjack(dealer) -> Unit
                 d > 21 || p > d -> bankroll += hand.wager * 2
@@ -230,7 +243,9 @@ fun BlackjackApp() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Header(game.bankroll, wide)
-                Spacer(Modifier.height(if (wide) 20.dp else 10.dp))
+                Spacer(Modifier.height(if (wide) 14.dp else 8.dp))
+                DeckDisplay(game.deckRemaining, game.drawPulse, wide)
+                Spacer(Modifier.height(if (wide) 16.dp else 10.dp))
 
                 if (wide) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -275,6 +290,44 @@ fun Header(bankroll: Int, wide: Boolean) {
 }
 
 @Composable
+fun DeckDisplay(remaining: Int, pulse: Int, wide: Boolean) {
+    val deckScale by animateFloatAsState(if (pulse > 0) 1.02f else 1f, tween(180), label = "deckPulse")
+    Surface(
+        modifier = Modifier.fillMaxWidth().scale(deckScale),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.Black.copy(alpha = .22f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .28f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = if (wide) 22.dp else 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(modifier = Modifier.width(if (wide) 62.dp else 48.dp).height(if (wide) 82.dp else 64.dp), contentAlignment = Alignment.Center) {
+                repeat(3) { i ->
+                    Surface(
+                        modifier = Modifier.offset(x = (i * 3).dp, y = (i * 2).dp).fillMaxSize(),
+                        shape = RoundedCornerShape(8.dp),
+                        color = DeckBlue,
+                        shadowElevation = 5.dp
+                    ) {
+                        Box(Modifier.border(2.dp, DeckBlue2, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                            Text("♠", color = Gold.copy(alpha = .85f), fontSize = if (wide) 25.sp else 20.sp)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text("SHOE / DECK", color = Gold, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp, fontSize = 13.sp)
+                Text("$remaining cards remaining", color = Color.White, fontWeight = FontWeight.Bold, fontSize = if (wide) 20.sp else 17.sp)
+                Text("Cards are drawn from the top", color = Color.White.copy(alpha = .58f), fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
 fun GamePanel(title: String, cards: List<Card>, hideFirst: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp, modifier: Modifier) {
     Surface(modifier = modifier.animateContentSize(), shape = RoundedCornerShape(20.dp), color = Color.Black.copy(alpha = .18f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .22f))) {
         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -304,15 +357,29 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
 
 @Composable
 fun CardsRow(cards: List<Card>, hideFirst: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        cards.forEachIndexed { i, card -> CardView(if (hideFirst && i == 0) "?" else card.toString(), cardWidth, cardHeight) }
+    val scroll = rememberScrollState()
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(scroll),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        cards.forEachIndexed { i, card ->
+            key("${card}-${i}") {
+                AnimatedVisibility(
+                    visible = true,
+                    enter = slideInVertically(initialOffsetY = { -it / 2 }, animationSpec = tween(280)) + fadeIn(tween(220))
+                ) {
+                    CardView(if (hideFirst && i == 0) "?" else card.toString(), cardWidth, cardHeight)
+                }
+            }
+        }
     }
 }
 
 @Composable
 fun CardView(text: String, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
     val red = text.contains("♥") || text.contains("♦")
-    Surface(shape = RoundedCornerShape(12.dp), color = Color.White, shadowElevation = 8.dp, modifier = Modifier.size(width, height)) {
+    Surface(shape = RoundedCornerShape(12.dp), color = Color.White, shadowElevation = 10.dp, modifier = Modifier.size(width, height)) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.border(2.dp, if (text == "?") GoldDeep else Color.LightGray, RoundedCornerShape(12.dp))) {
             Text(text, fontSize = if (width >= 70.dp) 27.sp else 20.sp, fontWeight = FontWeight.Bold, color = if (red) CardRed else Color(0xFF171717))
         }
