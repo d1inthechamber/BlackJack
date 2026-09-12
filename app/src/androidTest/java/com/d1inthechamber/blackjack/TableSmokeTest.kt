@@ -67,6 +67,12 @@ class TableSmokeTest {
         val dir=java.io.File(rule.activity.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
         java.io.File(dir,"$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
         bitmap.recycle()
+        // Gradle uninstalls the app after tests; keep visual QA outside its data directory.
+        val source=java.io.File(dir,"$name.png").absolutePath
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("cp $source /sdcard/Download/royal-felt-$name.png").use { pipe ->
+                java.io.FileInputStream(pipe.fileDescriptor).use { it.readBytes() }
+            }
     }
     @Test fun hitCardStaysVisibleInPortraitAndLandscape() {
         val g=BlackjackState(Deck(List(100){Card("2","♥")} + listOf("10","2","5","3","4").reversed().map{Card(it,"♠")}))
