@@ -35,13 +35,16 @@ jobs:
           profile: pixel_7
           disable-animations: true
           script: |
-            gradle :app:connectedDebugAndroidTest --no-daemon
-            adb pull /sdcard/Android/data/com.d1inthechamber.blackjack/files/screenshots screenshots
+            test_status=0; gradle :app:connectedDebugAndroidTest --no-daemon || test_status=$?; adb pull /sdcard/Android/data/com.d1inthechamber.blackjack/files/screenshots screenshots || true; adb logcat -d -s AndroidRuntime > android-runtime.log; exit $test_status
       - name: Upload Android screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-screenshots
-          path: screenshots
+          path: |
+            screenshots
+            android-runtime.log
+            app/build/reports/androidTests
       - name: Name install file
         run: cp app/build/outputs/apk/debug/app-debug.apk royal-felt-blackjack-v2.0.apk
       - name: Upload APK

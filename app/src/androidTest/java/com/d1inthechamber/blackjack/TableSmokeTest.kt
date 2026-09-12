@@ -44,6 +44,8 @@ class TableSmokeTest {
     @Test fun centeredDealerRendersRealGeometry() {
         rule.onNodeWithText("START NEW GAME").performClick()
         if(rule.onAllNodesWithText("START FRESH").fetchSemanticsNodes().isNotEmpty()) rule.onNodeWithText("START FRESH").performClick()
+        rule.onNodeWithText("MENU").assertIsDisplayed()
+        rule.waitForIdle()
         var surface: DealerSurface?=null
         fun find(view:android.view.View):DealerSurface? {
             if(view is DealerSurface) return view
@@ -51,7 +53,8 @@ class TableSmokeTest {
             return null
         }
         rule.runOnUiThread { surface=find(rule.activity.window.decorView) }
-        rule.waitUntil(10000) { (surface?.actor?.framesRendered ?: 0)>2 }
+        org.junit.Assert.assertNotNull("Dealer surface must be attached after table composition",surface)
+        rule.waitUntil(10000) { surface!!.actor.framesRendered>2 }
         org.junit.Assert.assertEquals(0,surface!!.actor.lastGlError)
         val pos=IntArray(2)
         rule.runOnUiThread { surface!!.getLocationOnScreen(pos) }
