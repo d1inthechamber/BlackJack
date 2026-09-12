@@ -69,7 +69,26 @@ fun score(hand: List<Card>): Int {
 fun blackjack(hand: List<Card>) = hand.size == 2 && score(hand) == 21
 fun isPair(hand: List<Card>) = hand.size == 2 && hand[0].rank == hand[1].rank
 
-class PlayerHand(val cards: MutableList<Card>, var wager: Int, var finished: Boolean = false, var doubled: Boolean = false) {
+enum class HandResult { BLACKJACK, WIN, PUSH, LOSE }
+
+fun resolveHand(player: List<Card>, dealer: List<Card>, blackjackEligible: Boolean = true): HandResult {
+    val playerTotal = score(player)
+    val dealerTotal = score(dealer)
+    val playerBlackjack = blackjackEligible && blackjack(player)
+    val dealerBlackjack = blackjack(dealer)
+    return when {
+        playerTotal > 21 -> HandResult.LOSE
+        dealerTotal > 21 -> if (playerBlackjack) HandResult.BLACKJACK else HandResult.WIN
+        playerBlackjack && dealerBlackjack -> HandResult.PUSH
+        dealerBlackjack -> HandResult.LOSE
+        playerBlackjack -> HandResult.BLACKJACK
+        playerTotal > dealerTotal -> HandResult.WIN
+        playerTotal == dealerTotal -> HandResult.PUSH
+        else -> HandResult.LOSE
+    }
+}
+
+class PlayerHand(val cards: MutableList<Card>, var wager: Int, var finished: Boolean = false, var doubled: Boolean = false, val fromSplit: Boolean = false) {
     fun total() = score(cards)
 }
 
@@ -150,8 +169,8 @@ class BlackjackState {
         if (!canAct() || !canSplit()) return
         val original = hands[activeHand]
         bankroll -= original.wager
-        val first = PlayerHand(mutableListOf(original.cards[0], drawCard()), original.wager)
-        val second = PlayerHand(mutableListOf(original.cards[1], drawCard()), original.wager)
+        val first = PlayerHand(mutableListOf(original.cards[0], drawCard()), original.wager, fromSplit = true)
+        val second = PlayerHand(mutableListOf(original.cards[1], drawCard()), original.wager, fromSplit = true)
         val updated = hands.toMutableList()
         updated[activeHand] = first
         updated.add(activeHand + 1, second)
@@ -175,24 +194,24 @@ class BlackjackState {
     }
     private fun finishRound() {
         while (score(dealer) < 17) dealer = dealer + drawCard()
-        hands.forEach { hand ->
-            val p = hand.total()
-            val d = score(dealer)
-            when {
-                blackjack(hand.cards) && !blackjack(dealer) -> bankroll += (hand.wager * 2.5).toInt()
-                p > 21 -> Unit
-                blackjack(dealer) -> Unit
-                d > 21 || p > d -> bankroll += hand.wager * 2
-                p == d -> bankroll += hand.wager
+        val results = hands.map { hand ->
+            resolveHand(hand.cards, dealer, blackjackEligible = !hand.fromSplit).also { result ->
+                when (result) {
+                    HandResult.BLACKJACK -> bankroll += (hand.wager * 2.5).toInt()
+                    HandResult.WIN -> bankroll += hand.wager * 2
+                    HandResult.PUSH -> bankroll += hand.wager
+                    HandResult.LOSE -> Unit
+                }
             }
         }
-        val wins = hands.count { it.total() <= 21 && !blackjack(dealer) && (score(dealer) > 21 || it.total() > score(dealer) || blackjack(it.cards)) }
-        val pushes = hands.count { it.total() <= 21 && !blackjack(it.cards) && score(dealer) <= 21 && it.total() == score(dealer) }
+        val wins = results.count { it == HandResult.WIN || it == HandResult.BLACKJACK }
+        val pushes = results.count { it == HandResult.PUSH }
         message = when {
-            hands.any { blackjack(it.cards) && !blackjack(dealer) } -> "BLACKJACK! 3:2 payout"
+            results.any { it == HandResult.BLACKJACK } -> "BLACKJACK! 3:2 payout"
+            score(dealer) > 21 && wins > 0 -> "DEALER BUSTS — YOU WIN!"
             wins > 0 -> if (hands.size > 1) "$wins hand${if (wins == 1) "" else "s"} won!" else "You win!"
             pushes > 0 -> "Push — bet returned"
-            hands.all { it.total() > 21 } -> "All hands busted"
+            hands.all { it.total() > 21 } -> "Player busts"
             else -> "Dealer wins"
         }
         finished = true
