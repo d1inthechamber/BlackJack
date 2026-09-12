@@ -47,9 +47,11 @@ class Deck {
     init { reset() }
     fun reset() {
         cards.clear()
-        listOf("♠", "♥", "♦", "♣").forEach { suit ->
-            (2..10).forEach { rank -> cards += Card(rank.toString(), suit) }
-            listOf("J", "Q", "K", "A").forEach { rank -> cards += Card(rank, suit) }
+        repeat(6) {
+            listOf("♠", "♥", "♦", "♣").forEach { suit ->
+                (2..10).forEach { rank -> cards += Card(rank.toString(), suit) }
+                listOf("J", "Q", "K", "A").forEach { rank -> cards += Card(rank, suit) }
+            }
         }
         cards.shuffle()
     }
@@ -67,7 +69,17 @@ fun score(hand: List<Card>): Int {
     return total
 }
 fun blackjack(hand: List<Card>) = hand.size == 2 && score(hand) == 21
-fun isPair(hand: List<Card>) = hand.size == 2 && hand[0].rank == hand[1].rank
+fun isPair(hand: List<Card>) = hand.size == 2 && hand[0].value == hand[1].value
+fun isSoft(hand: List<Card>): Boolean {
+    var total = hand.sumOf { it.value }
+    var highAces = hand.count { it.rank == "A" }
+    while (total > 21 && highAces > 0) {
+        total -= 10
+        highAces--
+    }
+    return total <= 21 && highAces > 0
+}
+fun dealerMustHit(hand: List<Card>) = score(hand) < 17
 
 enum class HandResult { BLACKJACK, WIN, PUSH, LOSE }
 
@@ -136,7 +148,7 @@ class BlackjackState {
         if (dealStep >= 4) {
             dealing = false
             message = "Your move"
-            if (blackjack(hands[0].cards)) finishRound()
+            if (blackjack(hands[0].cards) || blackjack(dealer)) finishRound()
         } else dealStep++
     }
 
@@ -154,7 +166,7 @@ class BlackjackState {
         advanceOrFinish()
     }
     fun doubleDown() {
-        if (!canAct() || hands[activeHand].cards.size != 2) return
+        if (!canAct() || hands[activeHand].cards.size != 2 || blackjack(hands[activeHand].cards)) return
         val hand = hands[activeHand]
         if (bankroll < hand.wager) return
         bankroll -= hand.wager
@@ -193,7 +205,9 @@ class BlackjackState {
         if (next >= 0) { activeHand = next; message = "Your move — hand ${next + 1} of ${hands.size}" } else finishRound()
     }
     private fun finishRound() {
-        while (score(dealer) < 17) dealer = dealer + drawCard()
+        if (hands.any { it.total() <= 21 }) {
+            while (dealerMustHit(dealer)) dealer = dealer + drawCard()
+        }
         val results = hands.map { hand ->
             resolveHand(hand.cards, dealer, blackjackEligible = !hand.fromSplit).also { result ->
                 when (result) {
