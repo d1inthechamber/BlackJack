@@ -93,6 +93,7 @@ class TableSmokeTest {
         rule.onNodeWithText("CONTINUE").performClick()
         rule.onNodeWithText("HIT").performClick()
         rule.onAllNodesWithText("4♠")[0].assertIsDisplayed()
+        rule.onNodeWithText("SHOE 100").assertExists()
         screenshot("portrait-hit")
         rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         rule.waitUntil(10000) { rule.activity.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE }

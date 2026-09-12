@@ -154,9 +154,10 @@ class BlackjackState(internal val deck: CardShoe = Deck()) {
     var dealerPlaying by mutableStateOf(false)
     var dealStep by mutableIntStateOf(0)
     var drawPulse by mutableIntStateOf(0)
-    val deckRemaining: Int get() = deck.remaining()
+    var deckRemaining by mutableIntStateOf(deck.remaining())
+        private set
 
-    private fun drawCard(): Card { val card = deck.draw(); drawPulse++; return card }
+    private fun drawCard(): Card { val card = deck.draw(); drawPulse++; deckRemaining = deck.remaining(); return card }
     private fun addBetInternal(amount: Int) { if (!shuffling && !inRound && !dealing && amount > 0 && bet + amount <= bankroll) bet += amount }
     private fun clearBetInternal() { if (!shuffling && !inRound && !dealing) bet = 0 }
     fun canDeal() = !shuffling && bet > 0 && bet <= bankroll && !inRound && !dealing
@@ -281,7 +282,7 @@ class BlackjackState(internal val deck: CardShoe = Deck()) {
     private fun newRoundInternal() { if (inRound || shuffling) return; bet = 0; hands = emptyList(); dealer = emptyList(); message = "Place your bet"; finished = false; inRound = false; dealing = false; dealerPlaying = false; dealStep = 0 }
     fun finishShuffle() {
         if (!shuffling) return
-        deck.reshuffle(); shuffling = false; beginDeal(); onChanged?.invoke()
+        deck.reshuffle(); deckRemaining = deck.remaining(); shuffling = false; beginDeal(); onChanged?.invoke()
     }
     fun addBet(amount: Int) { addBetInternal(amount); onChanged?.invoke() }
     fun clearBet() { clearBetInternal(); onChanged?.invoke() }
