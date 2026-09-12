@@ -15,7 +15,7 @@ internal data class SavedGame(
 ) : Serializable
 
 internal fun BlackjackState.savedGame() = SavedGame(shoe = (deck as Deck).snapshot(), bankroll = bankroll,
-    bet = bet, dealer = dealer.toList(), hands = hands.map { SavedHand(it.cards.toList(), it.wager, it.finished, it.doubled, it.fromSplit) },
+    bet = bet, dealer = ArrayList(dealer), hands = hands.map { SavedHand(ArrayList(it.cards), it.wager, it.finished, it.doubled, it.fromSplit) },
     active = activeHand, message = message, inRound = inRound, finished = finished, dealing = dealing,
     dealerPlaying = dealerPlaying, dealStep = dealStep, drawPulse = drawPulse, shuffling = shuffling,
     roundNumber = roundNumber, lastRound = lastRound)

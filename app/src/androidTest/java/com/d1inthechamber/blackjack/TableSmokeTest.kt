@@ -58,6 +58,29 @@ class TableSmokeTest {
         val screen=rule.activity.resources.displayMetrics.widthPixels
         org.junit.Assert.assertTrue(kotlin.math.abs(pos[0]+surface!!.width/2-screen/2)<screen*.08)
     }
+    private fun screenshot(name: String) {
+        rule.waitForIdle()
+        val bitmap=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val dir=java.io.File(rule.activity.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
+        java.io.File(dir,"$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
+        bitmap.recycle()
+    }
+    @Test fun hitCardStaysVisibleInPortraitAndLandscape() {
+        val g=BlackjackState(Deck(List(100){Card("2","♥")} + listOf("10","2","5","3","4").reversed().map{Card(it,"♠")}))
+        g.addBet(25);g.beginDeal();repeat(4){g.dealNextCard()}
+        val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { model.startNew();model.game=g }
+        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("HIT").performClick()
+        rule.onAllNodesWithText("4♠")[0].assertIsDisplayed()
+        screenshot("portrait-hit")
+        rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        rule.waitUntil(10000) { rule.activity.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE }
+        rule.onAllNodesWithText("4♠")[0].assertIsDisplayed()
+        rule.onNodeWithText("STAND").assertIsDisplayed()
+        screenshot("landscape-hit")
+        rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+    }
     @Test fun completedHandSummaryShowsExactPayoutAndCloses() {
         val ranks = mutableListOf("A", "9", "K", "8")
         val game = BlackjackState(object : CardShoe {

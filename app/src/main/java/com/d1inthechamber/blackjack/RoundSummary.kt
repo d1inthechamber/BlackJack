@@ -15,7 +15,7 @@ data class RoundSummary(val dealer: List<Card>, val hands: List<HandSummary>) : 
     val net get() = hands.sumOf { it.net }
 }
 fun summarizeRound(hands: List<PlayerHand>, dealer: List<Card>): RoundSummary = RoundSummary(
-    dealer.toList(), hands.map { hand ->
+    ArrayList(dealer), hands.map { hand ->
         val result = resolveHand(hand.cards, dealer, !hand.fromSplit)
         val returned = hand.wager * when(result) {
             HandResult.BLACKJACK -> 2.5
@@ -23,7 +23,7 @@ fun summarizeRound(hands: List<PlayerHand>, dealer: List<Card>): RoundSummary = 
             HandResult.PUSH -> 1.0
             HandResult.LOSE -> 0.0
         }
-        HandSummary(hand.cards.toList(), hand.wager, result, returned)
+        HandSummary(ArrayList(hand.cards), hand.wager, result, returned)
     }
 )
 @Composable
