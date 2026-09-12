@@ -5,6 +5,11 @@ import org.junit.Test
 
 class BlackjackRulesTest {
     @Test
+    fun shoeStartsWithSixDecks() {
+        assertEquals(312, Deck().remaining())
+    }
+
+    @Test
     fun player18BeatsDealer23() {
         val player = listOf(Card("10", "♠"), Card("8", "♥"))
         val dealer = listOf(Card("10", "♦"), Card("7", "♣"), Card("6", "♠"))
@@ -28,5 +33,17 @@ class BlackjackRulesTest {
         val dealer = listOf(Card("9", "♦"), Card("9", "♣"))
 
         assertEquals(HandResult.PUSH, resolveHand(player, dealer))
+    }
+
+    @Test
+    fun tenValueCardsCanBeSplit() {
+        assertEquals(true, isPair(listOf(Card("K", "♠"), Card("Q", "♥"))))
+    }
+
+    @Test
+    fun dealerStandsOnEvery17() {
+        assertEquals(false, dealerMustHit(listOf(Card("A", "♠"), Card("6", "♥"))))
+        assertEquals(false, dealerMustHit(listOf(Card("A", "♠"), Card("A", "♦"), Card("5", "♥"))))
+        assertEquals(false, dealerMustHit(listOf(Card("10", "♠"), Card("7", "♥"))))
     }
 }
