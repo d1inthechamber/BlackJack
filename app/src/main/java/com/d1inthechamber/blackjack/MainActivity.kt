@@ -286,6 +286,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun BlackjackApp(game: BlackjackState) {
+    var soundEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    var ambienceEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    TableSounds(game, soundEnabled)
+
     LaunchedEffect(game.dealStep, game.dealing) {
         if (game.dealing) { delay(420); game.dealNextCard() }
     }
@@ -313,14 +317,19 @@ fun BlackjackApp(game: BlackjackState) {
                     animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
                     label = "neonGlow"
                 )
-                Box(Modifier.fillMaxSize().background(Color(0xFF7A1237).copy(alpha = neonFlicker)))
+                Box(Modifier.fillMaxSize().background(Color(0xFF7A1237).copy(alpha = if (ambienceEnabled) neonFlicker else .06f)))
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .28f)))
+                if (ambienceEnabled) RoomCreatures()
                 Column(
                     modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)
                         .padding(horizontal = if (wide) 28.dp else 12.dp, vertical = 10.dp)
                         .widthIn(max = 1080.dp).align(Alignment.TopCenter),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        TextButton(onClick = { soundEnabled = !soundEnabled }) { Text(if (soundEnabled) "SOUND ON" else "SOUND OFF") }
+                        TextButton(onClick = { ambienceEnabled = !ambienceEnabled }) { Text(if (ambienceEnabled) "AMBIENCE ON" else "AMBIENCE OFF") }
+                    }
                     Header(game.bankroll, wide)
                     Spacer(Modifier.height(if (wide) 12.dp else 6.dp))
                     Column(
@@ -331,7 +340,7 @@ fun BlackjackApp(game: BlackjackState) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                 TableSectionLabel("DEALER")
-                                DealerPortrait(game, true)
+                                DealerPortrait(game, true, ambienceEnabled)
                                 Spacer(Modifier.height(8.dp))
                                 GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                             }
@@ -350,7 +359,7 @@ fun BlackjackApp(game: BlackjackState) {
                     } else {
                         CasinoBadge(game.message)
                         Spacer(Modifier.height(7.dp))
-                        DealerPortrait(game, false)
+                        DealerPortrait(game, false, ambienceEnabled)
                         Spacer(Modifier.height(5.dp))
                         GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                         Spacer(Modifier.height(7.dp))
@@ -372,7 +381,10 @@ fun BlackjackApp(game: BlackjackState) {
 }
 
 @Composable
-fun DealerPortrait(game: BlackjackState, wide: Boolean) {
+fun DealerPortrait(game: BlackjackState, wide: Boolean, animated: Boolean) {
+    val idle = rememberInfiniteTransition(label = "dealerIdle")
+    val breath by idle.animateFloat(0f, 1f, infiniteRepeatable(tween(2800), RepeatMode.Reverse), label = "breathing")
+
     val dealerScale by animateFloatAsState(
         targetValue = when {
             game.dealing || game.dealerPlaying -> 1.06f
@@ -397,7 +409,7 @@ fun DealerPortrait(game: BlackjackState, wide: Boolean) {
             painter = painterResource(R.drawable.dealer_old_vegas),
             contentDescription = "Old Vegas blackjack dealer",
             contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxWidth().height(if (wide) 190.dp else 132.dp).scale(dealerScale)
+            modifier = Modifier.fillMaxWidth().height(if (wide) 190.dp else 132.dp).scale(if (animated) dealerScale + breath * .009f else 1f).offset(y = if (animated) (-2f * breath).dp else 0.dp)
         )
         AnimatedContent(targetState = line, label = "dealerLine") { spokenLine ->
             Surface(color = Color(0xFFFAE8B2), shape = RoundedCornerShape(50), shadowElevation = 7.dp) {
