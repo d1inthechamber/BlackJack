@@ -63,6 +63,15 @@ class TableSmokeTest {
     }
     private fun screenshot(name: String) {
         rule.waitForIdle()
+        // Compose can be idle before the separate GL surface has produced its first frame.
+        fun find(view:android.view.View):DealerSurface? {
+            if(view is DealerSurface) return view
+            if(view is android.view.ViewGroup) for(i in 0 until view.childCount) find(view.getChildAt(i))?.let{return it}
+            return null
+        }
+        var surface:DealerSurface?=null
+        rule.runOnUiThread { surface=find(rule.activity.window.decorView) }
+        rule.waitUntil(10000) { (surface?.actor?.framesRendered ?: 0)>4 }
         val bitmap=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         val dir=java.io.File(rule.activity.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
         java.io.File(dir,"$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
