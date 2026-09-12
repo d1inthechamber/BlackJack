@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
@@ -17,6 +18,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -251,8 +253,8 @@ fun BlackjackApp() {
     MaterialTheme(colorScheme = darkColorScheme(primary = Gold, secondary = GoldDeep)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp
-            val cardWidth = if (wide) 78.dp else 58.dp
-            val cardHeight = if (wide) 112.dp else 82.dp
+            val cardWidth = if (wide) 84.dp else 68.dp
+            val cardHeight = if (wide) 120.dp else 96.dp
             Box(Modifier.fillMaxSize().background(Color(0xFF030907))) {
                 CasinoTableBackdrop()
                 Column(
@@ -263,6 +265,10 @@ fun BlackjackApp() {
                 ) {
                     Header(game.bankroll, wide)
                     Spacer(Modifier.height(if (wide) 12.dp else 6.dp))
+                    Column(
+                        modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                     if (wide) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -297,7 +303,8 @@ fun BlackjackApp() {
                         Spacer(Modifier.height(7.dp))
                         DeckDisplay(game.deckRemaining, game.drawPulse, false)
                     }
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.height(10.dp))
+                    }
                     BettingPanel(game, wide)
                 }
             }
@@ -428,10 +435,14 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
 @Composable
 fun CardsRow(cards: List<Card>, hideSecond: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp) {
     val scroll = rememberScrollState()
-    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+    LaunchedEffect(cards.size) {
+        delay(80)
+        scroll.animateScrollTo(scroll.maxValue)
+    }
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         cards.forEachIndexed { i, card ->
             key("${card}-${i}") {
-                AnimatedVisibility(visible = true, enter = slideInVertically(initialOffsetY = { -260 }, animationSpec = tween(420)) + fadeIn(tween(280)) + scaleIn(initialScale = .72f, animationSpec = tween(420))) {
+                AnimatedVisibility(visible = true, enter = slideInHorizontally(initialOffsetX = { it * 2 }, animationSpec = tween(460)) + slideInVertically(initialOffsetY = { -it / 3 }, animationSpec = tween(460)) + fadeIn(tween(240)) + scaleIn(initialScale = .68f, animationSpec = tween(460))) {
                     CardView(if (hideSecond && i == 1) "?" else card.toString(), cardWidth, cardHeight)
                 }
             }
