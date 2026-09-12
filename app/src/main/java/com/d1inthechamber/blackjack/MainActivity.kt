@@ -104,7 +104,8 @@ fun resolveHand(player: List<Card>, dealer: List<Card>, blackjackEligible: Boole
     }
 }
 
-class PlayerHand(val cards: MutableList<Card>, var wager: Int, var finished: Boolean = false, var doubled: Boolean = false, val fromSplit: Boolean = false) {
+class PlayerHand(initialCards: List<Card>, var wager: Int, var finished: Boolean = false, var doubled: Boolean = false, val fromSplit: Boolean = false) {
+    val cards = initialCards.toMutableStateList()
     fun total() = score(cards)
 }
 
