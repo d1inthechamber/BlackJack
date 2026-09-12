@@ -7,6 +7,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -260,7 +264,20 @@ fun BlackjackApp() {
             val cardWidth = if (wide) 84.dp else 68.dp
             val cardHeight = if (wide) 120.dp else 96.dp
             Box(Modifier.fillMaxSize().background(Color(0xFF030907))) {
-                CasinoTableBackdrop()
+                Image(
+                    painter = painterResource(R.drawable.casino_dingy_1970s),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                val neonFlicker by rememberInfiniteTransition(label = "brokenNeon").animateFloat(
+                    initialValue = .03f,
+                    targetValue = .11f,
+                    animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
+                    label = "neonGlow"
+                )
+                Box(Modifier.fillMaxSize().background(Color(0xFF7A1237).copy(alpha = neonFlicker)))
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .28f)))
                 Column(
                     modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)
                         .padding(horizontal = if (wide) 28.dp else 12.dp, vertical = 10.dp)
