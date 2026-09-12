@@ -5,6 +5,15 @@ import org.junit.Test
 
 class BlackjackRulesTest {
     @Test
+    fun hitCardImmediatelyAppearsInObservableHand() {
+        val hand = PlayerHand(listOf(Card("7", "♠"), Card("4", "♥")), wager = 25)
+        hand.cards += Card("5", "♦")
+
+        assertEquals(3, hand.cards.size)
+        assertEquals(16, hand.total())
+    }
+
+    @Test
     fun shoeStartsWithSixDecks() {
         assertEquals(312, Deck().remaining())
     }
