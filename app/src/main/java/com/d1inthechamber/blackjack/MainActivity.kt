@@ -70,6 +70,8 @@ fun score(hand: List<Card>): Int {
 }
 fun blackjack(hand: List<Card>) = hand.size == 2 && score(hand) == 21
 fun isPair(hand: List<Card>) = hand.size == 2 && hand[0].value == hand[1].value
+fun canSplitHand(hand: List<Card>, handCount: Int, availableBankroll: Int, wager: Int) =
+    handCount < 3 && isPair(hand) && availableBankroll >= wager
 fun isSoft(hand: List<Card>): Boolean {
     var total = hand.sumOf { it.value }
     var highAces = hand.count { it.rank == "A" }
@@ -196,7 +198,8 @@ class BlackjackState {
     }
     fun canSplit(): Boolean {
         if (!canAct() || hands[activeHand].cards.size != 2) return false
-        return hands.size < 3 && isPair(hands[activeHand].cards) && bankroll >= hands[activeHand].wager
+        val hand = hands[activeHand]
+        return canSplitHand(hand.cards, hands.size, bankroll, hand.wager)
     }
     private fun canAct() = inRound && !dealing && !finished && activeHand in hands.indices && !hands[activeHand].finished
     private fun finishActiveHand() { hands[activeHand].finished = true; hands = hands.toList(); advanceOrFinish() }
@@ -264,6 +267,8 @@ fun BlackjackApp() {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                 TableSectionLabel("DEALER")
+                                DealerAvatar(82.dp)
+                                Spacer(Modifier.height(8.dp))
                                 GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                             }
                             Column(Modifier.weight(1.35f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -281,6 +286,8 @@ fun BlackjackApp() {
                     } else {
                         CasinoBadge(game.message)
                         Spacer(Modifier.height(7.dp))
+                        DealerAvatar(58.dp)
+                        Spacer(Modifier.height(5.dp))
                         GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                         Spacer(Modifier.height(7.dp))
                         game.hands.forEachIndexed { index, hand ->
@@ -295,6 +302,21 @@ fun BlackjackApp() {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun DealerAvatar(avatarSize: androidx.compose.ui.unit.Dp) {
+    Canvas(Modifier.size(avatarSize)) {
+        val c = Offset(size.width / 2f, size.height / 2f)
+        drawCircle(Brush.radialGradient(listOf(Color(0xFFFFB74D), Color(0xFF7B1F36), Color(0xFF071A2D)), c, size.minDimension / 2f))
+        drawCircle(Color(0xFFE0A06D), radius = size.minDimension * .18f, center = Offset(c.x, c.y * .72f))
+        drawArc(Color(0xFF2B1B18), 190f, 160f, false, Offset(c.x - size.width * .19f, c.y * .35f), Size(size.width * .38f, size.height * .25f), style = Stroke(size.width * .08f))
+        drawLine(Color(0xFF101820), Offset(c.x - size.width * .17f, c.y * .68f), Offset(c.x + size.width * .17f, c.y * .68f), strokeWidth = size.width * .09f, cap = StrokeCap.Round)
+        drawLine(Gold, Offset(c.x - size.width * .34f, size.height * .86f), Offset(c.x, size.height * .62f), strokeWidth = size.width * .22f, cap = StrokeCap.Round)
+        drawLine(GoldDeep, Offset(c.x + size.width * .34f, size.height * .86f), Offset(c.x, size.height * .62f), strokeWidth = size.width * .22f, cap = StrokeCap.Round)
+        drawLine(Color.White.copy(alpha = .75f), Offset(size.width * .17f, size.height * .83f), Offset(size.width * .83f, size.height * .83f), strokeWidth = size.width * .035f)
+        drawCircle(Gold, radius = size.width * .045f, center = Offset(c.x, size.height * .76f))
     }
 }
 
