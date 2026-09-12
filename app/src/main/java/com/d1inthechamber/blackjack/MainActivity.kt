@@ -3,10 +3,13 @@ package com.d1inthechamber.blackjack
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.ViewModelProvider
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -19,6 +22,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +30,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.delay
 
 data class Card(val rank: String, val suit: String) {
@@ -51,7 +58,12 @@ data class Card(val rank: String, val suit: String) {
     override fun toString() = "$rank$suit"
 }
 
-class Deck {
+interface CardShoe {
+    fun draw(): Card
+    fun remaining(): Int
+}
+
+class Deck : CardShoe {
     private val cards = mutableListOf<Card>()
     init { reset() }
     fun reset() {
@@ -64,11 +76,11 @@ class Deck {
         }
         cards.shuffle()
     }
-    fun draw(): Card {
+    override fun draw(): Card {
         if (cards.size < 15) reset()
         return cards.removeAt(cards.lastIndex)
     }
-    fun remaining() = cards.size
+    override fun remaining() = cards.size
 }
 
 fun score(hand: List<Card>): Int {
@@ -79,7 +91,7 @@ fun score(hand: List<Card>): Int {
 }
 fun blackjack(hand: List<Card>) = hand.size == 2 && score(hand) == 21
 fun isPair(hand: List<Card>) = hand.size == 2 && hand[0].value == hand[1].value
-fun canSplitHand(hand: List<Card>, handCount: Int, availableBankroll: Int, wager: Int) =
+fun canSplitHand(hand: List<Card>, handCount: Int, availableBankroll: Double, wager: Int) =
     handCount < 3 && isPair(hand) && availableBankroll >= wager
 fun isSoft(hand: List<Card>): Boolean {
     var total = hand.sumOf { it.value }
@@ -111,13 +123,16 @@ fun resolveHand(player: List<Card>, dealer: List<Card>, blackjackEligible: Boole
     }
 }
 
-class PlayerHand(initialCards: List<Card>, var wager: Int, var finished: Boolean = false, var doubled: Boolean = false, val fromSplit: Boolean = false) {
+class PlayerHand(initialCards: List<Card>, wager: Int, finished: Boolean = false, doubled: Boolean = false, val fromSplit: Boolean = false) {
+    var wager by mutableIntStateOf(wager)
+    var finished by mutableStateOf(finished)
+    var doubled by mutableStateOf(doubled)
     val cards = initialCards.toMutableStateList()
     fun total() = score(cards)
 }
 
-class BlackjackState {
-    var bankroll by mutableIntStateOf(1000)
+class BlackjackState(private val deck: CardShoe = Deck()) {
+    var bankroll by mutableDoubleStateOf(1000.0)
     var bet by mutableIntStateOf(0)
     var dealer by mutableStateOf(listOf<Card>())
     var hands by mutableStateOf(listOf<PlayerHand>())
@@ -126,17 +141,18 @@ class BlackjackState {
     var inRound by mutableStateOf(false)
     var finished by mutableStateOf(false)
     var dealing by mutableStateOf(false)
+    var dealerPlaying by mutableStateOf(false)
     var dealStep by mutableIntStateOf(0)
     var drawPulse by mutableIntStateOf(0)
-    private var deck = Deck()
     val deckRemaining: Int get() = deck.remaining()
 
     private fun drawCard(): Card { val card = deck.draw(); drawPulse++; return card }
     fun addBet(amount: Int) { if (!inRound && !dealing && bet + amount <= bankroll) bet += amount }
     fun clearBet() { if (!inRound && !dealing) bet = 0 }
+    fun canDeal() = bet > 0 && bet <= bankroll && !inRound && !dealing
 
     fun beginDeal() {
-        if (bet <= 0 || inRound || dealing) return
+        if (!canDeal()) return
         bankroll -= bet
         hands = listOf(PlayerHand(mutableListOf(), bet))
         dealer = emptyList()
@@ -144,6 +160,7 @@ class BlackjackState {
         finished = false
         inRound = true
         dealing = true
+        dealerPlaying = false
         dealStep = 1
         message = "Dealing..."
     }
@@ -160,7 +177,7 @@ class BlackjackState {
         if (dealStep >= 4) {
             dealing = false
             message = "Your move"
-            if (blackjack(hands[0].cards) || blackjack(dealer)) finishRound()
+            if (blackjack(hands[0].cards) || blackjack(dealer)) settleRound()
         } else dealStep++
     }
 
@@ -200,31 +217,40 @@ class BlackjackState {
         updated.add(activeHand + 1, second)
         hands = updated
         message = "Split! Play hand ${activeHand + 1}"
-        if (first.cards[0].rank == "A") {
-            first.finished = true
-            second.finished = true
-            advanceOrFinish()
-        }
+        val splitAces = first.cards[0].rank == "A"
+        first.finished = splitAces || first.total() == 21
+        second.finished = splitAces || second.total() == 21
+        advanceOrFinish()
     }
     fun canSplit(): Boolean {
         if (!canAct() || hands[activeHand].cards.size != 2) return false
         val hand = hands[activeHand]
         return canSplitHand(hand.cards, hands.size, bankroll, hand.wager)
     }
-    private fun canAct() = inRound && !dealing && !finished && activeHand in hands.indices && !hands[activeHand].finished
+    fun canAct() = inRound && !dealing && !dealerPlaying && !finished && activeHand in hands.indices && !hands[activeHand].finished
     private fun finishActiveHand() { hands[activeHand].finished = true; hands = hands.toList(); advanceOrFinish() }
     private fun advanceOrFinish() {
         val next = hands.indexOfFirst { !it.finished }
-        if (next >= 0) { activeHand = next; message = "Your move — hand ${next + 1} of ${hands.size}" } else finishRound()
+        if (next >= 0) { activeHand = next; message = "Your move — hand ${next + 1} of ${hands.size}" } else startDealerTurn()
     }
-    private fun finishRound() {
-        if (hands.any { it.total() <= 21 }) {
-            while (dealerMustHit(dealer)) dealer = dealer + drawCard()
+    private fun startDealerTurn() {
+        if (hands.all { it.total() > 21 }) {
+            settleRound()
+        } else {
+            dealerPlaying = true
+            message = "Dealer's turn..."
         }
+    }
+    fun playDealerStep() {
+        if (!dealerPlaying) return
+        if (dealerMustHit(dealer)) dealer = dealer + drawCard()
+        if (!dealerMustHit(dealer)) settleRound()
+    }
+    private fun settleRound() {
         val results = hands.map { hand ->
             resolveHand(hand.cards, dealer, blackjackEligible = !hand.fromSplit).also { result ->
                 when (result) {
-                    HandResult.BLACKJACK -> bankroll += (hand.wager * 2.5).toInt()
+                    HandResult.BLACKJACK -> bankroll += hand.wager * 2.5
                     HandResult.WIN -> bankroll += hand.wager * 2
                     HandResult.PUSH -> bankroll += hand.wager
                     HandResult.LOSE -> Unit
@@ -244,19 +270,30 @@ class BlackjackState {
         finished = true
         inRound = false
         dealing = false
+        dealerPlaying = false
     }
-    fun newRound() { bet = 0; hands = emptyList(); dealer = emptyList(); message = "Place your bet"; finished = false; inRound = false; dealing = false; dealStep = 0 }
+    fun newRound() { bet = 0; hands = emptyList(); dealer = emptyList(); message = "Place your bet"; finished = false; inRound = false; dealing = false; dealerPlaying = false; dealStep = 0 }
+}
+
+class BlackjackViewModel : ViewModel() {
+    val game = BlackjackState()
 }
 
 class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { BlackjackApp() } }
+    private val gameViewModel: BlackjackViewModel by lazy { ViewModelProvider(this)[BlackjackViewModel::class.java] }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { BlackjackApp(gameViewModel.game) } }
 }
 
 @Composable
-fun BlackjackApp() {
-    val game = remember { BlackjackState() }
+fun BlackjackApp(game: BlackjackState) {
     LaunchedEffect(game.dealStep, game.dealing) {
         if (game.dealing) { delay(420); game.dealNextCard() }
+    }
+    LaunchedEffect(game, game.dealerPlaying) {
+        while (game.dealerPlaying) {
+            delay(520)
+            game.playDealerStep()
+        }
     }
     MaterialTheme(colorScheme = darkColorScheme(primary = Gold, secondary = GoldDeep)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -296,13 +333,13 @@ fun BlackjackApp() {
                                 TableSectionLabel("DEALER")
                                 DealerPortrait(game, true)
                                 Spacer(Modifier.height(8.dp))
-                                GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
+                                GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                             }
                             Column(Modifier.weight(1.35f), horizontalAlignment = Alignment.CenterHorizontally) {
                                 CasinoBadge(game.message)
                                 Spacer(Modifier.height(10.dp))
                                 game.hands.forEachIndexed { index, hand ->
-                                    PlayerHandPanel(index, hand, index == game.activeHand && game.inRound && !game.dealing, cardWidth, cardHeight)
+                                    PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight)
                                     if (index < game.hands.lastIndex) Spacer(Modifier.height(7.dp))
                                 }
                             }
@@ -315,10 +352,11 @@ fun BlackjackApp() {
                         Spacer(Modifier.height(7.dp))
                         DealerPortrait(game, false)
                         Spacer(Modifier.height(5.dp))
-                        GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
+                        GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                         Spacer(Modifier.height(7.dp))
                         game.hands.forEachIndexed { index, hand ->
-                            PlayerHandPanel(index, hand, index == game.activeHand && game.inRound && !game.dealing, cardWidth, cardHeight)
+                            PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
+                                revealHand = index == game.activeHand && !game.dealing)
                             if (index < game.hands.lastIndex) Spacer(Modifier.height(6.dp))
                         }
                         Spacer(Modifier.height(7.dp))
@@ -337,7 +375,7 @@ fun BlackjackApp() {
 fun DealerPortrait(game: BlackjackState, wide: Boolean) {
     val dealerScale by animateFloatAsState(
         targetValue = when {
-            game.dealing -> 1.06f
+            game.dealing || game.dealerPlaying -> 1.06f
             game.finished -> 1.03f
             else -> 1f
         },
@@ -346,6 +384,7 @@ fun DealerPortrait(game: BlackjackState, wide: Boolean) {
     )
     val line = when {
         game.dealing -> "Coming right up..."
+        game.dealerPlaying -> "Let's see what the house has..."
         game.message.contains("BLACKJACK") -> "Now that's a Vegas hand!"
         game.message.contains("DEALER BUSTS") -> "The house takes a tumble!"
         game.message.contains("You win", ignoreCase = true) -> "Well played, high roller."
@@ -394,8 +433,11 @@ private val CardRed = Color(0xFFD32F2F)
 private val DeckBlue = Color(0xFF173B70)
 private val DeckBlue2 = Color(0xFF245A9B)
 
+fun formatChips(amount: Double): String =
+    if (amount % 1.0 == 0.0) amount.toLong().toString() else amount.toString()
+
 @Composable
-fun Header(bankroll: Int, wide: Boolean) {
+fun Header(bankroll: Double, wide: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("ROYAL FELT", fontSize = if (wide) 14.sp else 11.sp, letterSpacing = 5.sp, color = Gold.copy(alpha = .85f), fontWeight = FontWeight.Bold)
         Text("BLACKJACK", fontSize = if (wide) 40.sp else 30.sp, fontWeight = FontWeight.Black, color = Color.White)
@@ -404,7 +446,7 @@ fun Header(bankroll: Int, wide: Boolean) {
         }
         Spacer(Modifier.height(5.dp))
         Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .48f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .55f))) {
-            Text("$ $bankroll", modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp), color = Gold, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Text("$ ${formatChips(bankroll)}", modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp), color = Gold, fontWeight = FontWeight.Black, fontSize = 18.sp)
         }
     }
 }
@@ -431,8 +473,15 @@ fun CasinoBadge(message: String) {
 
 @Composable
 fun DeckDisplay(remaining: Int, pulse: Int, wide: Boolean) {
-    val deckScale by animateFloatAsState(if (pulse > 0) 1.04f else 1f, tween(180), label = "deckPulse")
-    Surface(modifier = Modifier.fillMaxWidth().scale(deckScale), shape = RoundedCornerShape(18.dp), color = Color(0xFF030A07).copy(alpha = .58f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .28f))) {
+    val deckScale = remember { Animatable(1f) }
+    LaunchedEffect(pulse) {
+        if (pulse > 0) {
+            deckScale.snapTo(1f)
+            deckScale.animateTo(1.08f, tween(90))
+            deckScale.animateTo(1f, tween(180))
+        }
+    }
+    Surface(modifier = Modifier.fillMaxWidth().scale(deckScale.value), shape = RoundedCornerShape(18.dp), color = Color(0xFF030A07).copy(alpha = .58f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .28f))) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(modifier = Modifier.width(if (wide) 66.dp else 54.dp).height(if (wide) 86.dp else 68.dp), contentAlignment = Alignment.Center) {
                 repeat(4) { i ->
@@ -459,10 +508,20 @@ fun GamePanel(title: String, cards: List<Card>, hideSecond: Boolean, cardWidth: 
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp) {
+fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp, revealHand: Boolean = false) {
+    val handRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(revealHand, hand, hand.cards.size) {
+        if (revealHand) {
+            // Wait for the added card/new split hand to be measured before scrolling.
+            withFrameNanos { }
+            withFrameNanos { }
+            handRequester.bringIntoView()
+        }
+    }
     val pulse by animateFloatAsState(if (active) 1.018f else 1f, tween(400), label = "handPulse")
-    Surface(modifier = Modifier.fillMaxWidth().scale(pulse), shape = RoundedCornerShape(18.dp), color = if (active) Gold.copy(alpha = .07f) else Color(0xFF030A07).copy(alpha = .4f), border = androidx.compose.foundation.BorderStroke(1.dp, if (active) Gold else Color.White.copy(alpha = .1f))) {
+    Surface(modifier = Modifier.fillMaxWidth().bringIntoViewRequester(handRequester).scale(pulse), shape = RoundedCornerShape(18.dp), color = if (active) Gold.copy(alpha = .07f) else Color(0xFF030A07).copy(alpha = .4f), border = androidx.compose.foundation.BorderStroke(1.dp, if (active) Gold else Color.White.copy(alpha = .1f))) {
         Column(Modifier.padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("PLAYER ${index + 1}", color = if (active) Gold else Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 12.sp)
@@ -477,13 +536,14 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
 fun CardsRow(cards: List<Card>, hideSecond: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp) {
     val scroll = rememberScrollState()
     LaunchedEffect(cards.size) {
-        delay(80)
+        delay(500)
         scroll.animateScrollTo(scroll.maxValue)
     }
     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         cards.forEachIndexed { i, card ->
             key("${card}-${i}") {
-                AnimatedVisibility(visible = true, enter = slideInHorizontally(initialOffsetX = { it * 2 }, animationSpec = tween(460)) + slideInVertically(initialOffsetY = { -it / 3 }, animationSpec = tween(460)) + fadeIn(tween(240)) + scaleIn(initialScale = .68f, animationSpec = tween(460))) {
+                val entry = remember { MutableTransitionState(false).apply { targetState = true } }
+                AnimatedVisibility(visibleState = entry, enter = slideInHorizontally(initialOffsetX = { it * 2 }, animationSpec = tween(460)) + slideInVertically(initialOffsetY = { -it / 3 }, animationSpec = tween(460)) + fadeIn(tween(240)) + scaleIn(initialScale = .68f, animationSpec = tween(460))) {
                     CardView(if (hideSecond && i == 1) "?" else card.toString(), cardWidth, cardHeight)
                 }
             }
@@ -526,10 +586,10 @@ fun BettingPanel(game: BlackjackState, wide: Boolean) {
             }
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                GameButton("DEAL", !game.inRound && !game.dealing && game.bet > 0, Modifier.weight(1f)) { game.beginDeal() }
-                GameButton("HIT", game.inRound && !game.dealing && !game.finished, Modifier.weight(1f)) { game.hit() }
-                GameButton("STAND", game.inRound && !game.dealing && !game.finished, Modifier.weight(1f)) { game.stand() }
-                GameButton("DOUBLE", game.inRound && !game.dealing && !game.finished && game.hands.getOrNull(game.activeHand)?.cards?.size == 2 && game.bankroll >= (game.hands.getOrNull(game.activeHand)?.wager ?: Int.MAX_VALUE), Modifier.weight(1f)) { game.doubleDown() }
+                GameButton("DEAL", game.canDeal(), Modifier.weight(1f)) { game.beginDeal() }
+                GameButton("HIT", game.canAct(), Modifier.weight(1f)) { game.hit() }
+                GameButton("STAND", game.canAct(), Modifier.weight(1f)) { game.stand() }
+                GameButton("DOUBLE", game.canAct() && game.hands.getOrNull(game.activeHand)?.cards?.size == 2 && game.bankroll >= (game.hands.getOrNull(game.activeHand)?.wager ?: Int.MAX_VALUE), Modifier.weight(1f)) { game.doubleDown() }
                 GameButton("SPLIT", game.canSplit(), Modifier.weight(1f)) { game.split() }
                 if (game.finished) GameButton("NEW", true, Modifier.weight(1f)) { game.newRound() }
             }

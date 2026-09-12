@@ -52,7 +52,7 @@ class BlackjackRulesTest {
     @Test
     fun twoFivesCanBeSplitWhenMatchingWagerIsAvailable() {
         val fives = listOf(Card("5", "♠"), Card("5", "♥"))
-        assertEquals(true, canSplitHand(fives, handCount = 1, availableBankroll = 900, wager = 100))
+        assertEquals(true, canSplitHand(fives, handCount = 1, availableBankroll = 900.0, wager = 100))
     }
 
     @Test
