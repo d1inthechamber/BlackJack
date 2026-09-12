@@ -40,42 +40,22 @@ fun TableSounds(game: BlackjackState, enabled: Boolean) {
     }
 }
 
-// Small silhouettes stay at the room edges; no touch input or gameplay effects.
+// Soft overlapping wisps drift up the room edges behind the cards.
 @Composable
-fun RoomCreatures() {
+fun RoomSmoke() {
     var time by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        while (true) { delay(50); time += .05f }
-    }
+    LaunchedEffect(Unit) { while (true) { delay(40); time += .04f } }
     Canvas(Modifier.fillMaxSize()) {
-        repeat(3) { i ->
-            val phase = (time + i * 13f) % 45f
-            if (phase < 9f) {
-                val x = size.width * (if (i % 2 == 0) .025f else .975f)
-                val y = size.height * (.18f + phase / 9f * .5f)
-                val c = Color(0xFF271A10)
-                val r = 3.dp.toPx()
-                drawOval(c, Offset(x-r, y-r*1.6f), androidx.compose.ui.geometry.Size(r*2,r*3.2f))
-                repeat(3) { leg ->
-                    val wiggle = sin(time * 18 + leg).toFloat() * r
-                    drawLine(c, Offset(x,y+(leg-1)*r),Offset(x-r*2.5f,y+(leg-1)*r+wiggle),1.dp.toPx())
-                    drawLine(c, Offset(x,y+(leg-1)*r),Offset(x+r*2.5f,y+(leg-1)*r-wiggle),1.dp.toPx())
-                }
-            }
-        }
-        val phase = time % 65f
-        if (phase > 28f && phase < 40f) {
-            val x = size.width * .955f
-            val y = size.height * (.72f - (phase-28f)/12f*.45f)
-            val r = 4.dp.toPx(); val c = Color(0xFF687043)
-            drawLine(c,Offset(x,y+r*2),Offset(x+sin(time*4)*r*2,y+r*7),r*.6f)
-            drawOval(c,Offset(x-r,y-r*2),androidx.compose.ui.geometry.Size(r*2,r*4))
-            drawCircle(c,r*.85f,Offset(x,y-r*2.5f))
-            repeat(2) { j ->
-                val w = sin(time*9+j)*r
-                drawLine(c,Offset(x,y+(j*3-1)*r),Offset(x-r*2.5f,y+(j*3-1)*r+w),r*.5f)
-                drawLine(c,Offset(x,y+(j*3-1)*r),Offset(x+r*2.5f,y+(j*3-1)*r-w),r*.5f)
-            }
+        repeat(16) { i ->
+            val progress = (time * .025f + i / 16f) % 1f
+            val edge = if (i % 2 == 0) .08f else .92f
+            val x = size.width * (edge + sin(time * .28f + i * 1.7f) * .10f)
+            val y = size.height * (1.15f - progress * 1.4f)
+            val radius = size.minDimension * (.10f + progress * .13f)
+            val alpha = sin(progress * Math.PI).toFloat().coerceAtLeast(0f) * .12f
+            drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(
+                listOf(Color(0xFFCDC8B7).copy(alpha=alpha), Color.Transparent),
+                center=Offset(x,y), radius=radius),radius,Offset(x,y))
         }
     }
 }

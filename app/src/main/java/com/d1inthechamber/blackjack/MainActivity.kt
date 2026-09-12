@@ -53,7 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.delay
 
-data class Card(val rank: String, val suit: String) {
+data class Card(val rank: String, val suit: String) : java.io.Serializable {
     val value: Int get() = when (rank) { "A" -> 11; "K", "Q", "J" -> 10; else -> rank.toInt() }
     override fun toString() = "$rank$suit"
 }
@@ -61,11 +61,13 @@ data class Card(val rank: String, val suit: String) {
 interface CardShoe {
     fun draw(): Card
     fun remaining(): Int
+    fun needsShuffle(): Boolean = false
+    fun reshuffle() {}
 }
 
-class Deck : CardShoe {
+class Deck(initialCards: List<Card>? = null) : CardShoe {
     private val cards = mutableListOf<Card>()
-    init { reset() }
+    init { if (initialCards == null) reset() else cards.addAll(initialCards) }
     fun reset() {
         cards.clear()
         repeat(6) {
@@ -77,9 +79,12 @@ class Deck : CardShoe {
         cards.shuffle()
     }
     override fun draw(): Card {
-        if (cards.size < 15) reset()
+        check(cards.isNotEmpty()) { "Shoe exhausted before scheduled shuffle" }
         return cards.removeAt(cards.lastIndex)
     }
+    fun snapshot() = cards.toList()
+    override fun needsShuffle() = cards.size < 80
+    override fun reshuffle() = reset()
     override fun remaining() = cards.size
 }
 
@@ -131,7 +136,11 @@ class PlayerHand(initialCards: List<Card>, wager: Int, finished: Boolean = false
     fun total() = score(cards)
 }
 
-class BlackjackState(private val deck: CardShoe = Deck()) {
+class BlackjackState(internal val deck: CardShoe = Deck()) {
+    var onChanged: (() -> Unit)? = null
+    var shuffling by mutableStateOf(false)
+    var roundNumber by mutableIntStateOf(0)
+
     var lastRound by mutableStateOf<RoundSummary?>(null)
     var bankroll by mutableDoubleStateOf(1000.0)
     var bet by mutableIntStateOf(0)
@@ -148,12 +157,14 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
     val deckRemaining: Int get() = deck.remaining()
 
     private fun drawCard(): Card { val card = deck.draw(); drawPulse++; return card }
-    fun addBet(amount: Int) { if (!inRound && !dealing && bet + amount <= bankroll) bet += amount }
-    fun clearBet() { if (!inRound && !dealing) bet = 0 }
-    fun canDeal() = bet > 0 && bet <= bankroll && !inRound && !dealing
+    private fun addBetInternal(amount: Int) { if (!shuffling && !inRound && !dealing && amount > 0 && bet + amount <= bankroll) bet += amount }
+    private fun clearBetInternal() { if (!shuffling && !inRound && !dealing) bet = 0 }
+    fun canDeal() = !shuffling && bet > 0 && bet <= bankroll && !inRound && !dealing
 
-    fun beginDeal() {
+    private fun beginDealInternal() {
         if (!canDeal()) return
+        if (deck.needsShuffle()) { shuffling = true; finished = false; message = "Shuffling the shoe..."; return }
+        roundNumber++
         bankroll -= bet
         hands = listOf(PlayerHand(mutableListOf(), bet))
         dealer = emptyList()
@@ -166,7 +177,7 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
         message = "Dealing..."
     }
 
-    fun dealNextCard() {
+    private fun dealNextCardInternal() {
         if (!dealing) return
         when (dealStep) {
             1 -> hands[0].cards += drawCard()
@@ -182,20 +193,20 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
         } else dealStep++
     }
 
-    fun hit() {
+    private fun hitInternal() {
         if (!canAct()) return
         val hand = hands[activeHand]
         hand.cards += drawCard()
         hands = hands.toList()
         if (hand.total() >= 21) finishActiveHand()
     }
-    fun stand() {
+    private fun standInternal() {
         if (!canAct()) return
         hands[activeHand].finished = true
         hands = hands.toList()
         advanceOrFinish()
     }
-    fun doubleDown() {
+    private fun doubleDownInternal() {
         if (!canAct() || hands[activeHand].cards.size != 2 || blackjack(hands[activeHand].cards)) return
         val hand = hands[activeHand]
         if (bankroll < hand.wager) return
@@ -207,7 +218,7 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
         hands = hands.toList()
         advanceOrFinish()
     }
-    fun split() {
+    private fun splitInternal() {
         if (!canAct() || !canSplit()) return
         val original = hands[activeHand]
         bankroll -= original.wager
@@ -228,7 +239,7 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
         val hand = hands[activeHand]
         return canSplitHand(hand.cards, hands.size, bankroll, hand.wager)
     }
-    fun canAct() = inRound && !dealing && !dealerPlaying && !finished && activeHand in hands.indices && !hands[activeHand].finished
+    fun canAct() = !shuffling && inRound && !dealing && !dealerPlaying && !finished && activeHand in hands.indices && !hands[activeHand].finished
     private fun finishActiveHand() { hands[activeHand].finished = true; hands = hands.toList(); advanceOrFinish() }
     private fun advanceOrFinish() {
         val next = hands.indexOfFirst { !it.finished }
@@ -242,7 +253,7 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
             message = "Dealer's turn..."
         }
     }
-    fun playDealerStep() {
+    private fun playDealerStepInternal() {
         if (!dealerPlaying) return
         if (dealerMustHit(dealer)) dealer = dealer + drawCard()
         if (!dealerMustHit(dealer)) settleRound()
@@ -267,27 +278,54 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
         dealing = false
         dealerPlaying = false
     }
-    fun newRound() { bet = 0; hands = emptyList(); dealer = emptyList(); message = "Place your bet"; finished = false; inRound = false; dealing = false; dealerPlaying = false; dealStep = 0 }
+    private fun newRoundInternal() { if (inRound || shuffling) return; bet = 0; hands = emptyList(); dealer = emptyList(); message = "Place your bet"; finished = false; inRound = false; dealing = false; dealerPlaying = false; dealStep = 0 }
+    fun finishShuffle() {
+        if (!shuffling) return
+        deck.reshuffle(); shuffling = false; beginDeal(); onChanged?.invoke()
+    }
+    fun addBet(amount: Int) { addBetInternal(amount); onChanged?.invoke() }
+    fun clearBet() { clearBetInternal(); onChanged?.invoke() }
+    fun beginDeal() { beginDealInternal(); onChanged?.invoke() }
+    fun dealNextCard() { dealNextCardInternal(); onChanged?.invoke() }
+    fun hit() { hitInternal(); onChanged?.invoke() }
+    fun stand() { standInternal(); onChanged?.invoke() }
+    fun doubleDown() { doubleDownInternal(); onChanged?.invoke() }
+    fun split() { splitInternal(); onChanged?.invoke() }
+    fun playDealerStep() { playDealerStepInternal(); onChanged?.invoke() }
+    fun newRound() { newRoundInternal(); onChanged?.invoke() }
 }
 
-class BlackjackViewModel : ViewModel() {
-    val game = BlackjackState()
+class BlackjackViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
+    private val store = GameStore(application)
+    var game by mutableStateOf(store.load() ?: BlackjackState())
+    var hasSaved by mutableStateOf(store.exists())
+    init { attach() }
+    private fun attach() { game.onChanged = { store.save(game); hasSaved = true } }
+    fun save() { store.save(game); hasSaved = true }
+    fun startNew() { game = BlackjackState(); attach(); save() }
 }
 
 class MainActivity : ComponentActivity() {
     private val gameViewModel: BlackjackViewModel by lazy { ViewModelProvider(this)[BlackjackViewModel::class.java] }
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { BlackjackApp(gameViewModel.game) } }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { GameRoot(gameViewModel) }
+    }
+    override fun onStop() { gameViewModel.save(); super.onStop() }
 }
 
 @Composable
-fun BlackjackApp(game: BlackjackState) {
+fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> Unit = {}) {
     var showLastHand by remember { mutableStateOf(false) }
     if (showLastHand) game.lastRound?.let { LastHandDialog(it) { showLastHand = false } }
     var soundEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     var ambienceEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     TableSounds(game, soundEnabled)
 
-    LaunchedEffect(game.dealStep, game.dealing) {
+    LaunchedEffect(game, game.shuffling) {
+        if (game.shuffling) { delay(1800); game.finishShuffle() }
+    }
+    LaunchedEffect(game, game.dealStep, game.dealing) {
         if (game.dealing) { delay(420); game.dealNextCard() }
     }
     LaunchedEffect(game, game.dealerPlaying) {
@@ -299,8 +337,9 @@ fun BlackjackApp(game: BlackjackState) {
     MaterialTheme(colorScheme = darkColorScheme(primary = Gold, secondary = GoldDeep)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp
-            val cardWidth = if (wide) 84.dp else 68.dp
-            val cardHeight = if (wide) 120.dp else 96.dp
+            val compact = maxHeight < 600.dp
+            val cardWidth = if (compact) 42.dp else if (wide) 84.dp else 68.dp
+            val cardHeight = if (compact) 58.dp else if (wide) 120.dp else 96.dp
             Box(Modifier.fillMaxSize().background(Color(0xFF030907))) {
                 Image(
                     painter = painterResource(R.drawable.casino_dingy_1970s),
@@ -316,102 +355,54 @@ fun BlackjackApp(game: BlackjackState) {
                 )
                 Box(Modifier.fillMaxSize().background(Color(0xFF7A1237).copy(alpha = if (ambienceEnabled) neonFlicker else .06f)))
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .28f)))
-                if (ambienceEnabled) RoomCreatures()
+                if (ambienceEnabled) RoomSmoke()
                 Column(
                     modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)
                         .padding(horizontal = if (wide) 28.dp else 12.dp, vertical = 10.dp)
                         .widthIn(max = 1080.dp).align(Alignment.TopCenter),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    if (!compact) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         TextButton(enabled = game.lastRound != null, onClick = { showLastHand = true }) { Text("LAST HAND") }
                         TextButton(onClick = { soundEnabled = !soundEnabled }) { Text(if (soundEnabled) "SOUND ON" else "SOUND OFF") }
                         TextButton(onClick = { ambienceEnabled = !ambienceEnabled }) { Text(if (ambienceEnabled) "AMBIENCE ON" else "AMBIENCE OFF") }
                     }
-                    Header(game.bankroll, wide)
-                    Spacer(Modifier.height(if (wide) 12.dp else 6.dp))
-                    Column(
-                        modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                    if (wide) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                TableSectionLabel("DEALER")
-                                DealerPortrait(game, true, ambienceEnabled)
-                                Spacer(Modifier.height(8.dp))
-                                GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
-                            }
-                            Column(Modifier.weight(1.35f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                CasinoBadge(game.message)
-                                Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onMenu) { Text("MENU") }
+                        Text("${formatChips(game.bankroll)} CHIPS", color = Gold, fontWeight = FontWeight.Bold)
+                        Text("SHOE ${game.deckRemaining}", color = Gold, fontSize = 11.sp)
+                    }
+                    // Dealer has a fixed centered slot, outside the hand scroller on every screen width.
+                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth().height(if (compact) 66.dp else if (wide) 190.dp else 145.dp))
+                    if (compact) {
+                        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,
+                                cardWidth, cardHeight, Modifier.weight(1f).verticalScroll(rememberScrollState()))
+                            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                                 game.hands.forEachIndexed { index, hand ->
-                                    PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight)
-                                    if (index < game.hands.lastIndex) Spacer(Modifier.height(7.dp))
+                                    PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
+                                        revealHand = index == game.activeHand && !game.dealing)
                                 }
-                            }
-                            Column(Modifier.weight(.55f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                DeckDisplay(game.deckRemaining, game.drawPulse, true)
                             }
                         }
                     } else {
-                        CasinoBadge(game.message)
-                        Spacer(Modifier.height(7.dp))
-                        DealerPortrait(game, false, ambienceEnabled)
-                        Spacer(Modifier.height(5.dp))
-                        GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(7.dp))
-                        game.hands.forEachIndexed { index, hand ->
-                            PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
-                                revealHand = index == game.activeHand && !game.dealing)
-                            if (index < game.hands.lastIndex) Spacer(Modifier.height(6.dp))
+                        GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,
+                            cardWidth, cardHeight, Modifier.fillMaxWidth())
+                        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CasinoBadge(game.message)
+                            game.hands.forEachIndexed { index, hand ->
+                                PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
+                                    revealHand = index == game.activeHand && !game.dealing)
+                                Spacer(Modifier.height(6.dp))
+                            }
                         }
-                        Spacer(Modifier.height(7.dp))
-                        DeckDisplay(game.deckRemaining, game.drawPulse, false)
                     }
-                    Spacer(Modifier.height(10.dp))
+                    if (!game.inRound && !game.shuffling && game.bankroll < 10.0) {
+                        Button(onClick = onBuyIn, modifier = Modifier.fillMaxWidth()) { Text("BUY BACK IN • 1,000 FREE CHIPS") }
                     }
                     BettingPanel(game, wide)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun DealerPortrait(game: BlackjackState, wide: Boolean, animated: Boolean) {
-    val idle = rememberInfiniteTransition(label = "dealerIdle")
-    val breath by idle.animateFloat(0f, 1f, infiniteRepeatable(tween(2800), RepeatMode.Reverse), label = "breathing")
-
-    val dealerScale by animateFloatAsState(
-        targetValue = when {
-            game.dealing || game.dealerPlaying -> 1.06f
-            game.finished -> 1.03f
-            else -> 1f
-        },
-        animationSpec = tween(320),
-        label = "dealerReaction"
-    )
-    val line = when {
-        game.dealing -> "Coming right up..."
-        game.dealerPlaying -> "Let's see what the house has..."
-        game.message.contains("BLACKJACK") -> "Now that's a Vegas hand!"
-        game.message.contains("DEALER BUSTS") -> "The house takes a tumble!"
-        game.message.contains("You win", ignoreCase = true) -> "Well played, high roller."
-        game.message.contains("Dealer wins") -> "The house wins this one."
-        game.inRound -> "Your move. Hit or stand?"
-        else -> "Place your bets!"
-    }
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Image(
-            painter = painterResource(R.drawable.dealer_old_vegas),
-            contentDescription = "Old Vegas blackjack dealer",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxWidth().height(if (wide) 190.dp else 132.dp).scale(if (animated) dealerScale + breath * .009f else 1f).offset(y = if (animated) (-2f * breath).dp else 0.dp)
-        )
-        AnimatedContent(targetState = line, label = "dealerLine") { spokenLine ->
-            Surface(color = Color(0xFFFAE8B2), shape = RoundedCornerShape(50), shadowElevation = 7.dp) {
-                Text(spokenLine, color = Color(0xFF3A1715), fontWeight = FontWeight.Bold, fontSize = if (wide) 11.sp else 10.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp), textAlign = TextAlign.Center)
+                TableEventOverlay(game)
             }
         }
     }
@@ -591,8 +582,8 @@ fun BettingPanel(game: BlackjackState, wide: Boolean) {
             }
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                listOf(10, 25, 50, 100).forEach { n -> ChipButton(n, enabled = !game.inRound && !game.dealing && game.bet + n <= game.bankroll) { game.addBet(n) } }
-                OutlinedButton(onClick = { game.clearBet() }, enabled = !game.inRound && !game.dealing, modifier = Modifier.height(42.dp), shape = RoundedCornerShape(12.dp)) { Text("CLEAR", fontSize = 10.sp, fontWeight = FontWeight.Black) }
+                listOf(10, 25, 50, 100).forEach { n -> ChipButton(n, enabled = !game.shuffling && !game.inRound && !game.dealing && game.bet + n <= game.bankroll) { game.addBet(n) } }
+                OutlinedButton(onClick = { game.clearBet() }, enabled = !game.shuffling && !game.inRound && !game.dealing, modifier = Modifier.height(42.dp), shape = RoundedCornerShape(12.dp)) { Text("CLEAR", fontSize = 10.sp, fontWeight = FontWeight.Black) }
             }
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {

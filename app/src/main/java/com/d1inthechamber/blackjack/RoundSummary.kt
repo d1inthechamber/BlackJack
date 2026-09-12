@@ -7,10 +7,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
 
-data class HandSummary(val cards: List<Card>, val wager: Int, val result: HandResult, val returned: Double) {
+data class HandSummary(val cards: List<Card>, val wager: Int, val result: HandResult, val returned: Double) : java.io.Serializable {
     val net get() = returned - wager
 }
-data class RoundSummary(val dealer: List<Card>, val hands: List<HandSummary>) {
+data class RoundSummary(val dealer: List<Card>, val hands: List<HandSummary>) : java.io.Serializable {
     val returned get() = hands.sumOf { it.returned }
     val net get() = hands.sumOf { it.net }
 }
