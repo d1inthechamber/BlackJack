@@ -72,6 +72,8 @@ class TableSmokeTest {
         var surface:DealerSurface?=null
         rule.runOnUiThread { surface=find(rule.activity.window.decorView) }
         rule.waitUntil(10000) { (surface?.actor?.framesRendered ?: 0)>4 }
+        rule.mainClock.advanceTimeBy(1000)
+        rule.waitForIdle()
         val bitmap=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         val dir=java.io.File(rule.activity.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
         java.io.File(dir,"$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
