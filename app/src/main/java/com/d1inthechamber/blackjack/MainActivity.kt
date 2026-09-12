@@ -15,6 +15,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -33,6 +34,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -274,7 +277,7 @@ fun BlackjackApp() {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                 TableSectionLabel("DEALER")
-                                DealerAvatar(82.dp)
+                                DealerPortrait(game, true)
                                 Spacer(Modifier.height(8.dp))
                                 GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                             }
@@ -293,7 +296,7 @@ fun BlackjackApp() {
                     } else {
                         CasinoBadge(game.message)
                         Spacer(Modifier.height(7.dp))
-                        DealerAvatar(58.dp)
+                        DealerPortrait(game, false)
                         Spacer(Modifier.height(5.dp))
                         GamePanel("DEALER", game.dealer, game.inRound && !game.finished, cardWidth, cardHeight, Modifier.fillMaxWidth())
                         Spacer(Modifier.height(7.dp))
@@ -314,17 +317,37 @@ fun BlackjackApp() {
 }
 
 @Composable
-fun DealerAvatar(avatarSize: androidx.compose.ui.unit.Dp) {
-    Canvas(Modifier.size(avatarSize)) {
-        val c = Offset(size.width / 2f, size.height / 2f)
-        drawCircle(Brush.radialGradient(listOf(Color(0xFFFFB74D), Color(0xFF7B1F36), Color(0xFF071A2D)), c, size.minDimension / 2f))
-        drawCircle(Color(0xFFE0A06D), radius = size.minDimension * .18f, center = Offset(c.x, c.y * .72f))
-        drawArc(Color(0xFF2B1B18), 190f, 160f, false, Offset(c.x - size.width * .19f, c.y * .35f), Size(size.width * .38f, size.height * .25f), style = Stroke(size.width * .08f))
-        drawLine(Color(0xFF101820), Offset(c.x - size.width * .17f, c.y * .68f), Offset(c.x + size.width * .17f, c.y * .68f), strokeWidth = size.width * .09f, cap = StrokeCap.Round)
-        drawLine(Gold, Offset(c.x - size.width * .34f, size.height * .86f), Offset(c.x, size.height * .62f), strokeWidth = size.width * .22f, cap = StrokeCap.Round)
-        drawLine(GoldDeep, Offset(c.x + size.width * .34f, size.height * .86f), Offset(c.x, size.height * .62f), strokeWidth = size.width * .22f, cap = StrokeCap.Round)
-        drawLine(Color.White.copy(alpha = .75f), Offset(size.width * .17f, size.height * .83f), Offset(size.width * .83f, size.height * .83f), strokeWidth = size.width * .035f)
-        drawCircle(Gold, radius = size.width * .045f, center = Offset(c.x, size.height * .76f))
+fun DealerPortrait(game: BlackjackState, wide: Boolean) {
+    val dealerScale by animateFloatAsState(
+        targetValue = when {
+            game.dealing -> 1.06f
+            game.finished -> 1.03f
+            else -> 1f
+        },
+        animationSpec = tween(320),
+        label = "dealerReaction"
+    )
+    val line = when {
+        game.dealing -> "Coming right up..."
+        game.message.contains("BLACKJACK") -> "Now that's a Vegas hand!"
+        game.message.contains("DEALER BUSTS") -> "The house takes a tumble!"
+        game.message.contains("You win", ignoreCase = true) -> "Well played, high roller."
+        game.message.contains("Dealer wins") -> "The house wins this one."
+        game.inRound -> "Your move. Hit or stand?"
+        else -> "Place your bets!"
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Image(
+            painter = painterResource(R.drawable.dealer_old_vegas),
+            contentDescription = "Old Vegas blackjack dealer",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth().height(if (wide) 190.dp else 132.dp).scale(dealerScale)
+        )
+        AnimatedContent(targetState = line, label = "dealerLine") { spokenLine ->
+            Surface(color = Color(0xFFFAE8B2), shape = RoundedCornerShape(50), shadowElevation = 7.dp) {
+                Text(spokenLine, color = Color(0xFF3A1715), fontWeight = FontWeight.Bold, fontSize = if (wide) 11.sp else 10.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp), textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 
