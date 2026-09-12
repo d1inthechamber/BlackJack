@@ -132,6 +132,7 @@ class PlayerHand(initialCards: List<Card>, wager: Int, finished: Boolean = false
 }
 
 class BlackjackState(private val deck: CardShoe = Deck()) {
+    var lastRound by mutableStateOf<RoundSummary?>(null)
     var bankroll by mutableDoubleStateOf(1000.0)
     var bet by mutableIntStateOf(0)
     var dealer by mutableStateOf(listOf<Card>())
@@ -247,16 +248,10 @@ class BlackjackState(private val deck: CardShoe = Deck()) {
         if (!dealerMustHit(dealer)) settleRound()
     }
     private fun settleRound() {
-        val results = hands.map { hand ->
-            resolveHand(hand.cards, dealer, blackjackEligible = !hand.fromSplit).also { result ->
-                when (result) {
-                    HandResult.BLACKJACK -> bankroll += hand.wager * 2.5
-                    HandResult.WIN -> bankroll += hand.wager * 2
-                    HandResult.PUSH -> bankroll += hand.wager
-                    HandResult.LOSE -> Unit
-                }
-            }
-        }
+        val summary = summarizeRound(hands, dealer)
+        lastRound = summary
+        bankroll += summary.returned
+        val results = summary.hands.map { it.result }
         val wins = results.count { it == HandResult.WIN || it == HandResult.BLACKJACK }
         val pushes = results.count { it == HandResult.PUSH }
         message = when {
@@ -286,6 +281,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun BlackjackApp(game: BlackjackState) {
+    var showLastHand by remember { mutableStateOf(false) }
+    if (showLastHand) game.lastRound?.let { LastHandDialog(it) { showLastHand = false } }
     var soundEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     var ambienceEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     TableSounds(game, soundEnabled)
@@ -327,6 +324,7 @@ fun BlackjackApp(game: BlackjackState) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        TextButton(enabled = game.lastRound != null, onClick = { showLastHand = true }) { Text("LAST HAND") }
                         TextButton(onClick = { soundEnabled = !soundEnabled }) { Text(if (soundEnabled) "SOUND ON" else "SOUND OFF") }
                         TextButton(onClick = { ambienceEnabled = !ambienceEnabled }) { Text(if (ambienceEnabled) "AMBIENCE ON" else "AMBIENCE OFF") }
                     }
