@@ -100,6 +100,7 @@ class TableSmokeTest {
         rule.onNodeWithText("HIT").performClick()
         rule.onAllNodesWithText("4♠")[0].assertIsDisplayed()
         rule.onNodeWithText("SHOE 100").assertExists()
+        rule.onNodeWithText("AVAILABLE 975 CHIPS").assertIsDisplayed()
         screenshot("portrait-hit")
         rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         rule.waitUntil(10000) { rule.activity.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE }
@@ -107,6 +108,30 @@ class TableSmokeTest {
         rule.onNodeWithText("STAND").assertIsDisplayed()
         screenshot("landscape-hit")
         rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+    }
+    @Test fun hitTravelsFromDealerTowardPlayerBeforeActionsResume() {
+        val g=BlackjackState(Deck(List(100){Card("2","♥")} + listOf("10","2","5","3","4").reversed().map{Card(it,"♠")}))
+        g.addBet(25);g.beginDeal();repeat(4){g.dealNextCard()}
+        val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { model.startNew();model.game=g }
+        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("HIT").assertIsEnabled()
+        rule.mainClock.autoAdvance=false
+        try {
+            rule.onNodeWithText("HIT").performClick()
+            rule.mainClock.advanceTimeBy(200)
+            rule.waitForIdle()
+            val early=rule.onNodeWithTag("dealing-card").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.center
+            rule.onNodeWithText("HIT").assertIsNotEnabled()
+            rule.mainClock.advanceTimeBy(160)
+            rule.waitForIdle()
+            val later=rule.onNodeWithTag("dealing-card").fetchSemanticsNode().boundsInRoot.center
+            org.junit.Assert.assertTrue("Card must move down from the dealer to the player",later.y>early.y)
+            rule.mainClock.advanceTimeBy(800)
+            rule.waitForIdle()
+            rule.onNodeWithTag("dealing-card").assertDoesNotExist()
+            rule.onNodeWithText("HIT").assertIsEnabled()
+        } finally { rule.mainClock.autoAdvance=true }
     }
     @Test fun completedHandSummaryShowsExactPayoutAndCloses() {
         val ranks = mutableListOf("A", "9", "K", "8")

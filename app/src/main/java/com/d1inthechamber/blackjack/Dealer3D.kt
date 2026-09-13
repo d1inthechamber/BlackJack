@@ -18,7 +18,7 @@ import javax.microedition.khronos.opengles.GL10
 import kotlin.math.*
 
 @Composable
-fun Dealer3D(game: BlackjackState, animated: Boolean, modifier: Modifier) {
+fun Dealer3D(game: BlackjackState, animated: Boolean, modifier: Modifier, motionPulse: Int = game.drawPulse, onSurfaceReady: (DealerSurface) -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val view = remember { DealerSurface(context) }
     val owner = LocalLifecycleOwner.current
@@ -32,7 +32,8 @@ fun Dealer3D(game: BlackjackState, animated: Boolean, modifier: Modifier) {
     }
     AndroidView(factory = { view }, modifier = modifier, update = {
         it.actor.motionEnabled = animated
-        it.actor.pulse = game.drawPulse
+        it.actor.pulse = motionPulse
+        onSurfaceReady(it)
         it.actor.shuffle = game.shuffling
         it.actor.result = if (game.finished) game.message else ""
     })
@@ -61,6 +62,11 @@ class DealerRenderer(private val context: Context) : GLSurfaceView.Renderer {
     @Volatile var result = ""
     @Volatile var textureLoaded = false
     @Volatile var headYaw = 0f
+    @Volatile var handFractionX = .5f
+    @Volatile var handFractionY = .7f
+    private var viewportAspect = 1f
+    private val palm = floatArrayOf(DealerMesh.x(.145f),DealerMesh.y(.735f),DealerMesh.depth(.145f,.735f),1f)
+    private val movedPalm = FloatArray(4)
     private var seenPulse = 0
     private var gestureStart = -10f
     private val started = System.nanoTime()
@@ -158,6 +164,7 @@ class DealerRenderer(private val context: Context) : GLSurfaceView.Renderer {
     override fun onSurfaceChanged(gl:GL10?,width:Int,height:Int) {
         glViewport(0,0,width,height)
         val aspect=width.toFloat()/height.coerceAtLeast(1)
+        viewportAspect=aspect
         Matrix.orthoM(projection,0,-1.08f*aspect,1.08f*aspect,-1.08f,1.08f,1f,20f)
         Matrix.setLookAtM(camera,0,0f,0f,5f,0f,0f,0f,0f,1f,0f)
         Matrix.multiplyMM(mvp,0,projection,0,camera,0)
@@ -181,6 +188,9 @@ class DealerRenderer(private val context: Context) : GLSurfaceView.Renderer {
         pose(neck,.51f,.36f,headYaw,idle*1.6f,if(motionEnabled && result.isNotEmpty()) sin(t*1.5f)*3f else -g*3f)
         pose(left,.245f,.47f,idle*.8f+riffle*2f,g*7f+idle*.7f,-g*12f+riffle*4f,g*.055f)
         pose(right,.81f,.47f,-idle, -g*2f+riffle*3f,idle*1.3f-riffle*3f)
+        Matrix.multiplyMV(movedPalm,0,left,0,palm,0)
+        handFractionX=.5f+movedPalm[0]/(2.16f*viewportAspect)
+        handFractionY=.5f-movedPalm[1]/2.16f
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);glUseProgram(program)
         glUniformMatrix4fv(mvpLocation,1,false,mvp,0)
         glUniformMatrix4fv(neckLocation,1,false,neck,0)

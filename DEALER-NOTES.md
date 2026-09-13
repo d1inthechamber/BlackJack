@@ -13,3 +13,8 @@ key, using the standard Android debug password. It is for this virtual-chip test
 not production releases. Keeping it stable permits future sideloaded updates to retain
 local saved games. Versions before 2.1 used different ephemeral build keys and require
 uninstalling before installing 2.1.
+
+Cards now originate from the skinned palm position, travel to the measured destination,
+and become visible in their hand on arrival. Duplicate ranks/suits from separate decks
+are tracked by identity. Split-card flights run sequentially, and action controls wait
+until cards land. Bankroll is shown alongside the bet controls.

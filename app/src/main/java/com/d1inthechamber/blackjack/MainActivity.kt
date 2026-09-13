@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -321,20 +323,22 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
     if (showLastHand) game.lastRound?.let { LastHandDialog(it) { showLastHand = false } }
     var soundEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     var ambienceEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    val flights = remember(game, game.roundNumber) { CardFlights(game) }
     TableSounds(game, soundEnabled)
 
     LaunchedEffect(game, game.shuffling) {
         if (game.shuffling) { delay(1800); game.finishShuffle() }
     }
     LaunchedEffect(game, game.dealStep, game.dealing) {
-        if (game.dealing) { delay(420); game.dealNextCard() }
+        if (game.dealing) { delay(560); game.dealNextCard() }
     }
     LaunchedEffect(game, game.dealerPlaying) {
         while (game.dealerPlaying) {
-            delay(520)
+            delay(560)
             game.playDealerStep()
         }
     }
+    CompositionLocalProvider(LocalCardFlights provides flights) {
     MaterialTheme(colorScheme = darkColorScheme(primary = Gold, secondary = GoldDeep)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp
@@ -342,7 +346,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
             val tall = maxHeight >= 750.dp
             val cardWidth = if (compact) 42.dp else if (wide) 84.dp else 68.dp
             val cardHeight = if (compact) 58.dp else if (wide) 120.dp else 96.dp
-            Box(Modifier.fillMaxSize().background(Color(0xFF030907))) {
+            Box(Modifier.fillMaxSize().onGloballyPositioned { flights.rootOrigin = it.boundsInRoot().topLeft }.background(Color(0xFF030907))) {
                 Image(
                     painter = painterResource(R.drawable.casino_dingy_1970s),
                     contentDescription = null,
@@ -375,7 +379,11 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                         Text("SHOE ${game.deckRemaining}", color = Gold, fontSize = 11.sp)
                     }
                     // Dealer has a fixed centered slot, outside the hand scroller on every screen width.
-                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth().height(if (compact) 66.dp else if (wide) 200.dp else if (tall) 185.dp else 145.dp))
+                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth()
+                        .height(if (compact) 66.dp else if (wide) 200.dp else if (tall) 185.dp else 145.dp)
+                        .onGloballyPositioned { flights.dealerBounds = it.boundsInRoot() },
+                        motionPulse = flights.motionPulse,
+                        onSurfaceReady = { view -> flights.handFraction = { Offset(view.actor.handFractionX,view.actor.handFractionY) } })
                     if (compact) {
                         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,
@@ -404,10 +412,13 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                     }
                     BettingPanel(game, wide)
                 }
-                TableEventOverlay(game)
+                CardFlightsOverlay(flights)
+                if (!flights.busy) TableEventOverlay(game)
             }
         }
     }
+}
+
 }
 
 @Composable
@@ -539,16 +550,13 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
 fun CardsRow(cards: List<Card>, hideSecond: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp) {
     val scroll = rememberScrollState()
     LaunchedEffect(cards.size) {
-        delay(500)
-        scroll.animateScrollTo(scroll.maxValue)
+        withFrameNanos { };withFrameNanos { }
+        scroll.scrollTo(scroll.maxValue)
     }
     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         cards.forEachIndexed { i, card ->
             key("${card}-${i}") {
-                val entry = remember { MutableTransitionState(false).apply { targetState = true } }
-                AnimatedVisibility(visibleState = entry, enter = slideInHorizontally(initialOffsetX = { it * 2 }, animationSpec = tween(460)) + slideInVertically(initialOffsetY = { -it / 3 }, animationSpec = tween(460)) + fadeIn(tween(240)) + scaleIn(initialScale = .68f, animationSpec = tween(460))) {
-                    CardView(if (hideSecond && i == 1) "?" else card.toString(), cardWidth, cardHeight)
-                }
+                DealtCard(card, if (hideSecond && i == 1) "?" else card.toString(), cardWidth, cardHeight)
             }
         }
     }
@@ -576,11 +584,15 @@ fun CardView(text: String, width: androidx.compose.ui.unit.Dp, height: androidx.
 
 @Composable
 fun BettingPanel(game: BlackjackState, wide: Boolean) {
+    val flightsBusy = LocalCardFlights.current?.busy == true
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Color(0xFF030A07).copy(alpha = .7f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .3f))) {
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("AVAILABLE ${formatChips(game.bankroll)} CHIPS", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("BET", color = Color.White.copy(alpha = .7f), fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp)
                 Spacer(Modifier.width(8.dp)); Text("${game.bet} CHIPS", color = Gold, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                }
             }
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -589,12 +601,12 @@ fun BettingPanel(game: BlackjackState, wide: Boolean) {
             }
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                GameButton("DEAL", game.canDeal(), Modifier.weight(1f)) { game.beginDeal() }
-                GameButton("HIT", game.canAct(), Modifier.weight(1f)) { game.hit() }
-                GameButton("STAND", game.canAct(), Modifier.weight(1f)) { game.stand() }
-                GameButton("DOUBLE", game.canAct() && game.hands.getOrNull(game.activeHand)?.cards?.size == 2 && game.bankroll >= (game.hands.getOrNull(game.activeHand)?.wager ?: Int.MAX_VALUE), Modifier.weight(1f)) { game.doubleDown() }
-                GameButton("SPLIT", game.canSplit(), Modifier.weight(1f)) { game.split() }
-                if (game.finished) GameButton("NEW", true, Modifier.weight(1f)) { game.newRound() }
+                GameButton("DEAL", !flightsBusy && game.canDeal(), Modifier.weight(1f)) { game.beginDeal() }
+                GameButton("HIT", !flightsBusy && game.canAct(), Modifier.weight(1f)) { game.hit() }
+                GameButton("STAND", !flightsBusy && game.canAct(), Modifier.weight(1f)) { game.stand() }
+                GameButton("DOUBLE", !flightsBusy && game.canAct() && game.hands.getOrNull(game.activeHand)?.cards?.size == 2 && game.bankroll >= (game.hands.getOrNull(game.activeHand)?.wager ?: Int.MAX_VALUE), Modifier.weight(1f)) { game.doubleDown() }
+                GameButton("SPLIT", !flightsBusy && game.canSplit(), Modifier.weight(1f)) { game.split() }
+                if (game.finished) GameButton("NEW", !flightsBusy, Modifier.weight(1f)) { game.newRound() }
             }
         }
     }
