@@ -56,6 +56,12 @@ class TableSmokeTest {
         org.junit.Assert.assertNotNull("Dealer surface must be attached after table composition",surface)
         rule.waitUntil(10000) { surface!!.actor.framesRendered>2 }
         org.junit.Assert.assertEquals(0,surface!!.actor.lastGlError)
+        org.junit.Assert.assertTrue("Original artwork must be uploaded",surface!!.actor.textureLoaded)
+        val initialYaw=surface!!.actor.headYaw
+        rule.waitUntil(5000) { kotlin.math.abs(surface!!.actor.headYaw-initialYaw)>.5f }
+        rule.onNodeWithText("AMBIENCE ON").performClick()
+        rule.waitUntil(5000) { surface!!.actor.headYaw==0f }
+        rule.onNodeWithText("AMBIENCE OFF").performClick()
         val pos=IntArray(2)
         rule.runOnUiThread { surface!!.getLocationOnScreen(pos) }
         val screen=rule.activity.resources.displayMetrics.widthPixels

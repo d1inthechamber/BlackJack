@@ -374,7 +374,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                         Text("SHOE ${game.deckRemaining}", color = Gold, fontSize = 11.sp)
                     }
                     // Dealer has a fixed centered slot, outside the hand scroller on every screen width.
-                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth().height(if (compact) 66.dp else if (wide) 190.dp else 145.dp))
+                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth().height(if (compact) 78.dp else if (wide) 200.dp else if (maxHeight >= 750.dp) 185.dp else 145.dp))
                     if (compact) {
                         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,

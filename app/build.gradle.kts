@@ -13,8 +13,17 @@ android {
         minSdk = 24
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 12
-        versionName = "2.0"
+        versionCode = 13
+        versionName = "2.1"
+    }
+
+    // Public development key: keeps sideloaded test updates compatible. Not a release key.
+    signingConfigs.getByName("debug") {
+        storeFile = file("debug-signing.p12")
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+        storeType = "PKCS12"
     }
 
     buildTypes {
