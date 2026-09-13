@@ -13,8 +13,8 @@ android {
         minSdk = 24
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 13
-        versionName = "2.1"
+        versionCode = 14
+        versionName = "2.2"
     }
 
     // Public development key: keeps sideloaded test updates compatible. Not a release key.

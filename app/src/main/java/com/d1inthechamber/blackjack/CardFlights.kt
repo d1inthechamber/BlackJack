@@ -103,8 +103,8 @@ internal fun CardFlightsOverlay(flights:CardFlights) {
             val p=progress.value
             val center=origin+(end-origin)*p-Offset(0f,sin(p*PI.toFloat())*55f*density.density)
             val w=with(density){rect.width.toDp()};val h=with(density){rect.height.toDp()}
-            Box(Modifier.testTag("dealing-card").offset { IntOffset((center.x-rect.width/2).roundToInt(),(center.y-rect.height/2).roundToInt()) }
-                .graphicsLayer { rotationZ=-14f*(1f-p);scaleX=.72f+.28f*p;scaleY=scaleX }) {
+            Box(Modifier.offset { IntOffset((center.x-rect.width/2).roundToInt(),(center.y-rect.height/2).roundToInt()) }
+                .testTag("dealing-card").graphicsLayer { rotationZ=-14f*(1f-p);scaleX=.72f+.28f*p;scaleY=scaleX }) {
                 CardView(active.face(),w,h)
             }
         }

@@ -154,6 +154,33 @@ class TableSmokeTest {
             rule.onNodeWithText("HIT").assertIsEnabled()
         } finally { rule.mainClock.autoAdvance=true }
     }
+    @Test fun roomSelectionPreservesGameAndRendersEveryDealer() {
+        val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { model.startNew();model.game.addBet(25) }
+        val before=model.game.savedGame()
+        for(room in RoomStyle.entries.filter { it!=RoomStyle.VEGAS }) {
+            rule.onNodeWithText("CHOOSE ROOM").performClick()
+            rule.onNodeWithText(room.title,substring=true).performScrollTo().performClick()
+            rule.runOnIdle {
+                org.junit.Assert.assertEquals(room,model.room)
+                org.junit.Assert.assertEquals(room,RoomPreferences(rule.activity).load())
+                org.junit.Assert.assertEquals(before,model.game.savedGame())
+                listOfNotNull(room.background,room.dealer,room.cardBack).forEach { id ->
+                    val bitmap=android.graphics.BitmapFactory.decodeResource(rule.activity.resources,id)
+                    org.junit.Assert.assertNotNull("Room asset must decode",bitmap)
+                    bitmap?.recycle()
+                }
+            }
+            rule.onNodeWithText("CONTINUE").performClick()
+            rule.onNodeWithText("AVAILABLE 1000 CHIPS").assertIsDisplayed()
+            screenshot("room-${room.id}")
+            rule.onNodeWithText("MENU").performClick()
+        }
+        rule.activityRule.scenario.recreate()
+        val restored=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnIdle { org.junit.Assert.assertEquals(RoomStyle.WEST,restored.room) }
+        rule.runOnUiThread { restored.selectRoom(RoomStyle.VEGAS) }
+    }
     @Test fun completedHandSummaryShowsExactPayoutAndCloses() {
         val ranks = mutableListOf("A", "9", "K", "8")
         val game = BlackjackState(object : CardShoe {

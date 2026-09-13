@@ -18,3 +18,8 @@ Cards now originate from the skinned palm position, travel to the measured desti
 and become visible in their hand on arrival. Duplicate ranks/suits from separate decks
 are tracked by identity. Split-card flights run sequentially, and action controls wait
 until cards land. Bankroll is shown alongside the bet controls.
+
+## Room sets (2.2)
+Five selectable rooms preserve the same saved hand and bank. Each new room has a background, themed card backs and paper/border colors, and its own articulated painted dealer. The user approved the 2D art direction. New dealer textures use a green-screen key in the fragment shader; Vegas retains its original alpha texture. The room preference is stored separately from the game save.
+
+Carnival follows the supplied costume photo and text-free card character reference. Pharaoh’s Palace uses Tutankhamun, Ironworks uses Ebenezer Scrooge, West Coast ’94 uses Eazy-E.

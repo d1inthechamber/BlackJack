@@ -299,6 +299,10 @@ class BlackjackState(internal val deck: CardShoe = Deck()) {
 }
 
 class BlackjackViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
+    private val roomPreferences = RoomPreferences(application)
+    var room by mutableStateOf(roomPreferences.load())
+        private set
+    fun selectRoom(value: RoomStyle) { room=value; roomPreferences.save(value) }
     private val store = GameStore(application)
     var game by mutableStateOf(store.load() ?: BlackjackState())
     var hasSaved by mutableStateOf(store.exists())
@@ -348,7 +352,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
             val cardHeight = if (compact) 58.dp else if (wide) 120.dp else 96.dp
             Box(Modifier.fillMaxSize().onGloballyPositioned { flights.rootOrigin = it.boundsInRoot().topLeft }.background(Color(0xFF030907))) {
                 Image(
-                    painter = painterResource(R.drawable.casino_dingy_1970s),
+                    painter = painterResource(LocalRoomStyle.current.background),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -441,8 +445,8 @@ fun CasinoTableBackdrop() {
 
 private val Felt = Color(0xFF071A12)
 private val Felt2 = Color(0xFF123A27)
-private val Gold = Color(0xFFFFD54F)
-private val GoldDeep = Color(0xFFC79A20)
+private val Gold: Color @Composable get() = LocalRoomStyle.current.accent
+private val GoldDeep: Color @Composable get() = LocalRoomStyle.current.button
 private val CardRed = Color(0xFFD32F2F)
 private val DeckBlue = Color(0xFF173B70)
 private val DeckBlue2 = Color(0xFF245A9B)
@@ -564,11 +568,14 @@ fun CardsRow(cards: List<Card>, hideSecond: Boolean, cardWidth: androidx.compose
 
 @Composable
 fun CardView(text: String, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
+    val room = LocalRoomStyle.current
     val red = text.contains("♥") || text.contains("♦")
     val back = text == "?"
-    Surface(shape = RoundedCornerShape(12.dp), color = if (back) DeckBlue else Color.White, shadowElevation = 14.dp, modifier = Modifier.size(width, height)) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.border(2.dp, if (back) GoldDeep else Color.LightGray, RoundedCornerShape(12.dp))) {
-            if (back) {
+    Surface(shape = RoundedCornerShape(12.dp), color = if (back) DeckBlue else room.paper, shadowElevation = 14.dp, modifier = Modifier.size(width, height)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.border(2.dp, room.accent, RoundedCornerShape(12.dp))) {
+            if (back && room.cardBack != null) {
+                Image(painterResource(room.cardBack),"${room.title} card back",Modifier.fillMaxSize(),contentScale=ContentScale.FillBounds)
+            } else if (back) {
                 Box(Modifier.fillMaxSize().padding(5.dp).border(1.dp, DeckBlue2, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                     Text("♠", color = Gold, fontSize = if (width >= 70.dp) 30.sp else 23.sp)
                 }

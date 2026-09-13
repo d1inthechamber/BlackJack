@@ -20,7 +20,8 @@ import kotlin.math.*
 @Composable
 fun Dealer3D(game: BlackjackState, animated: Boolean, modifier: Modifier, motionPulse: Int = game.drawPulse, onSurfaceReady: (DealerSurface) -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val view = remember { DealerSurface(context) }
+    val room = LocalRoomStyle.current
+    val view = remember(room) { DealerSurface(context,room) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner, view) {
         val observer = LifecycleEventObserver { _, event ->
@@ -38,8 +39,8 @@ fun Dealer3D(game: BlackjackState, animated: Boolean, modifier: Modifier, motion
         it.actor.result = if (game.finished) game.message else ""
     })
 }
-class DealerSurface(context: Context) : GLSurfaceView(context) {
-    val actor = DealerRenderer(context.applicationContext)
+class DealerSurface(context: Context, room:RoomStyle=RoomStyle.VEGAS) : GLSurfaceView(context) {
+    val actor = DealerRenderer(context.applicationContext,room)
     init {
         contentDescription = "Animated original casino dealer"
         setEGLContextClientVersion(2)
@@ -53,7 +54,7 @@ class DealerSurface(context: Context) : GLSurfaceView(context) {
 
 // The original artwork is the texture of an articulated relief. Gentle camera-facing
 // rotations reveal its sculpted depth without pretending to provide unseen side/back art.
-class DealerRenderer(private val context: Context) : GLSurfaceView.Renderer {
+class DealerRenderer(private val context: Context, private val room:RoomStyle=RoomStyle.VEGAS) : GLSurfaceView.Renderer {
     @Volatile var framesRendered = 0
     @Volatile var lastGlError = 0
     @Volatile var motionEnabled = true
@@ -126,6 +127,14 @@ class DealerRenderer(private val context: Context) : GLSurfaceView.Renderer {
             varying float light;
             void main() {
                 vec4 c=texture2D(artwork,tex);
+                ${if(room != RoomStyle.VEGAS) """
+                // Chroma-key generated sprite backgrounds in the renderer.
+                float green=c.g-max(c.r,c.b);
+                float mask=1.0-smoothstep(0.08,0.30,green);
+                if(mask<0.05) discard;
+                c.g=min(c.g,max(c.r,c.b)+0.04);
+                c*=mask;
+                """ else ""}
                 if(c.a<0.05) discard;
                 gl_FragColor=vec4(c.rgb*light,c.a);
             }
@@ -151,7 +160,7 @@ class DealerRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE)
         val options=android.graphics.BitmapFactory.Options().apply { inScaled=false }
-        val bitmap=checkNotNull(android.graphics.BitmapFactory.decodeResource(context.resources,R.drawable.dealer_old_vegas,options))
+        val bitmap=checkNotNull(android.graphics.BitmapFactory.decodeResource(context.resources,room.dealer,options))
         android.opengl.GLUtils.texImage2D(GL_TEXTURE_2D,0,bitmap,0)
         bitmap.recycle()
         textureLoaded=glGetError()==GL_NO_ERROR
