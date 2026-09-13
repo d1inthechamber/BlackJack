@@ -87,6 +87,7 @@ class TableSmokeTest {
         rule.waitUntil(10000) { rule.activity.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE }
         rule.onAllNodesWithText("4♠")[0].assertIsDisplayed()
         rule.onNodeWithText("STAND").assertIsDisplayed()
+        rule.onAllNodesWithText("4♠")[1].assertIsDisplayed()
         screenshot("landscape-hit")
         rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
     }
@@ -146,9 +147,9 @@ class TableSmokeTest {
                 org.junit.Assert.assertEquals(room,model.room)
                 org.junit.Assert.assertEquals(room,RoomPreferences(rule.activity).load())
                 org.junit.Assert.assertEquals(before,model.game.savedGame())
-                listOfNotNull(room.background,room.dealer,room.cardBack).forEach { id ->
+                listOfNotNull(room.background,room.dealer,room.cardBack,dealerSheet(room)).distinct().forEach { id ->
                     val bitmap=android.graphics.BitmapFactory.decodeResource(rule.activity.resources,id)
-                    org.junit.Assert.assertNotNull("Room asset must decode",bitmap)
+                    org.junit.Assert.assertNotNull("${room.id}: ${rule.activity.resources.getResourceEntryName(id)} must decode",bitmap)
                     bitmap?.recycle()
                 }
             }

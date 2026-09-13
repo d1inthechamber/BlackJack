@@ -419,7 +419,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                     if (!game.inRound && !game.shuffling && game.bankroll < 10.0) {
                         Button(onClick = onBuyIn, modifier = Modifier.fillMaxWidth()) { Text("BUY BACK IN • 1,000 FREE CHIPS") }
                     }
-                    BettingPanel(game, wide)
+                    BettingPanel(game, wide, compact)
                 }
                 CardFlightsOverlay(flights)
                 if (!flights.busy) TableEventOverlay(game)
@@ -595,7 +595,7 @@ fun CardView(text: String, width: androidx.compose.ui.unit.Dp, height: androidx.
 }
 
 @Composable
-fun BettingPanel(game: BlackjackState, wide: Boolean) {
+fun BettingPanel(game: BlackjackState, wide: Boolean, compact: Boolean = false) {
     val flightsBusy = LocalCardFlights.current?.busy == true
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Color(0xFF030A07).copy(alpha = .7f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .3f))) {
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -606,12 +606,14 @@ fun BettingPanel(game: BlackjackState, wide: Boolean) {
                 Spacer(Modifier.width(8.dp)); Text("${game.bet} CHIPS", color = Gold, fontWeight = FontWeight.Black, fontSize = 16.sp)
                 }
             }
+            if (!compact || game.hands.all { it.cards.isEmpty() }) {
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 listOf(10, 25, 50, 100).forEach { n -> ChipButton(n, enabled = !game.shuffling && !game.inRound && !game.dealing && game.bet + n <= game.bankroll) { game.addBet(n) } }
                 OutlinedButton(onClick = { game.clearBet() }, enabled = !game.shuffling && !game.inRound && !game.dealing, modifier = Modifier.height(42.dp), shape = RoundedCornerShape(12.dp)) { Text("CLEAR", fontSize = 10.sp, fontWeight = FontWeight.Black) }
             }
             Spacer(Modifier.height(7.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                 GameButton("DEAL", !flightsBusy && game.canDeal(), Modifier.weight(1f)) { game.beginDeal() }
                 GameButton("HIT", !flightsBusy && game.canAct(), Modifier.weight(1f)) { game.hit() }

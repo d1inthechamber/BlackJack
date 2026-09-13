@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Verify packaged assets
+        run: python3 .github/check_assets.py
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
