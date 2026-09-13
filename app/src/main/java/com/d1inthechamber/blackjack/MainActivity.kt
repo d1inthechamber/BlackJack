@@ -391,7 +391,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                                 game.hands.forEachIndexed { index, hand ->
                                     PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
-                                        revealHand = index == game.activeHand && !game.dealing)
+                                        revealHand = index == game.activeHand && !game.dealing && !flights.busy)
                                 }
                             }
                         }
@@ -402,7 +402,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                             CasinoBadge(game.message)
                             game.hands.forEachIndexed { index, hand ->
                                 PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
-                                    revealHand = index == game.activeHand && !game.dealing)
+                                    revealHand = index == game.activeHand && !game.dealing && !flights.busy)
                                 Spacer(Modifier.height(6.dp))
                             }
                         }

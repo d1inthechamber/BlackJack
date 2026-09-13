@@ -4,6 +4,9 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -23,7 +26,7 @@ private class CardIdentity(val card:Card) {
     override fun equals(other:Any?)=other is CardIdentity && card===other.card
     override fun hashCode()=System.identityHashCode(card)
 }
-internal class CardFlight(val card:Card,val face:()->String,val destination:()->Rect?,val arrive:()->Unit)
+internal class CardFlight(val card:Card,val face:()->String,val destination:()->Rect?,val prepare:suspend ()->Unit = {},val arrive:()->Unit)
 internal class CardFlights(game:BlackjackState) {
     // Identity distinguishes repeated ranks/suits in a six-deck shoe, and preserves
     // existing cards when a pair is split. Restored cards start seated at the table.
@@ -48,17 +51,19 @@ internal class CardFlights(game:BlackjackState) {
 }
 internal val LocalCardFlights=staticCompositionLocalOf<CardFlights?> { null }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun DealtCard(card:Card,text:String,width:Dp,height:Dp) {
     val flights=LocalCardFlights.current
     val identity = CardIdentity(card)
+    val requester = remember { BringIntoViewRequester() }
     var arrived by remember(flights,identity) { mutableStateOf(flights==null || flights.hasSeen(card)) }
     var bounds by remember { mutableStateOf<Rect?>(null) }
     val currentText by rememberUpdatedState(text)
     LaunchedEffect(flights,identity) {
-        if(!arrived && flights!=null) flights.enqueue(CardFlight(card,{currentText},{bounds}) { arrived=true })
+        if(!arrived && flights!=null) flights.enqueue(CardFlight(card,{currentText},{bounds},prepare={ requester.bringIntoView() }) { arrived=true })
     }
-    Box(Modifier.onGloballyPositioned { bounds=it.boundsInRoot() }.graphicsLayer { alpha=if(arrived) 1f else 0f }) {
+    Box(Modifier.bringIntoViewRequester(requester).onGloballyPositioned { bounds=it.boundsInRoot() }.graphicsLayer { alpha=if(arrived) 1f else 0f }) {
         CardView(text,width,height)
     }
 }
@@ -72,9 +77,11 @@ internal fun CardFlightsOverlay(flights:CardFlights) {
     LaunchedEffect(flights,active) {
         moving=false
         if(active!=null) {
+            try {
             // Let the real destination finish measuring and scrolling into view.
             var frames=0
             while((active.destination()==null || flights.handOrigin()==null) && frames++<45) withFrameNanos { }
+            if (active.destination()!=null) active.prepare()
             withFrameNanos { };withFrameNanos { }
             flights.motionPulse++
             delay(90)
@@ -83,8 +90,10 @@ internal fun CardFlightsOverlay(flights:CardFlights) {
                 origin=start;progress.snapTo(0f);moving=true
                 progress.animateTo(1f,tween(370,easing=FastOutSlowInEasing))
             }
-            active.arrive();moving=false
-            flights.queue.remove(active)
+            } finally {
+                active.arrive();moving=false
+                flights.queue.remove(active)
+            }
         }
     }
     Box(Modifier.fillMaxSize()) {

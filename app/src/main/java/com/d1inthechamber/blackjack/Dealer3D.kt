@@ -181,7 +181,7 @@ class DealerRenderer(private val context: Context) : GLSurfaceView.Renderer {
     override fun onDrawFrame(gl:GL10?) {
         val t=(System.nanoTime()-started)/1_000_000_000f
         if(pulse!=seenPulse) {seenPulse=pulse;gestureStart=t}
-        val g=if(motionEnabled) sin(((t-gestureStart)/1.15f).coerceIn(0f,1f)*PI.toFloat()) else 0f
+        val g=if(motionEnabled) sin(((t-gestureStart)/.48f).coerceIn(0f,1f)*PI.toFloat()) else 0f
         val idle=if(motionEnabled) sin(t*.78f) else 0f
         val riffle=if(motionEnabled && shuffle) sin(t*8f) else 0f
         headYaw=idle*4f

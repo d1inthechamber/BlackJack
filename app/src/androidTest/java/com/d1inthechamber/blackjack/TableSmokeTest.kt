@@ -109,6 +109,27 @@ class TableSmokeTest {
         screenshot("landscape-hit")
         rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
     }
+    @Test fun initialDealAndSplitFinishBothFlightsBeforePlayResumes() {
+        val g=BlackjackState(Deck(List(100){Card("2","♥")} + listOf("5","10","5","7","3","4").reversed().map{Card(it,"♠")}))
+        g.addBet(25)
+        val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { model.startNew();model.game=g }
+        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("DEAL").performClick()
+        rule.mainClock.advanceTimeBy(3500)
+        rule.waitForIdle()
+        rule.onNodeWithText("SPLIT").assertIsEnabled().performClick()
+        rule.mainClock.advanceTimeBy(2500)
+        rule.waitForIdle()
+        rule.onNodeWithText("HIT").assertIsEnabled()
+        rule.onNodeWithTag("dealing-card").assertDoesNotExist()
+        rule.onNodeWithText("AVAILABLE 950 CHIPS").assertIsDisplayed()
+        rule.onAllNodesWithText("3♠")[0].assertIsDisplayed()
+        rule.runOnIdle {
+            org.junit.Assert.assertEquals(listOf("5","3"),g.hands[0].cards.map { it.rank })
+            org.junit.Assert.assertEquals(listOf("5","4"),g.hands[1].cards.map { it.rank })
+        }
+    }
     @Test fun hitTravelsFromDealerTowardPlayerBeforeActionsResume() {
         val g=BlackjackState(Deck(List(100){Card("2","♥")} + listOf("10","2","5","3","4").reversed().map{Card(it,"♠")}))
         g.addBet(25);g.beginDeal();repeat(4){g.dealNextCard()}
