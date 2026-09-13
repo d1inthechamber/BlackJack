@@ -339,6 +339,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp
             val compact = maxHeight < 600.dp
+            val tall = maxHeight >= 750.dp
             val cardWidth = if (compact) 42.dp else if (wide) 84.dp else 68.dp
             val cardHeight = if (compact) 58.dp else if (wide) 120.dp else 96.dp
             Box(Modifier.fillMaxSize().background(Color(0xFF030907))) {
@@ -374,7 +375,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                         Text("SHOE ${game.deckRemaining}", color = Gold, fontSize = 11.sp)
                     }
                     // Dealer has a fixed centered slot, outside the hand scroller on every screen width.
-                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth().height(if (compact) 78.dp else if (wide) 200.dp else if (maxHeight >= 750.dp) 185.dp else 145.dp))
+                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth().height(if (compact) 66.dp else if (wide) 200.dp else if (tall) 185.dp else 145.dp))
                     if (compact) {
                         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,
