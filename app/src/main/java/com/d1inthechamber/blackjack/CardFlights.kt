@@ -2,6 +2,7 @@ package com.d1inthechamber.blackjack
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -36,6 +37,18 @@ internal class CardFlights(game:BlackjackState) {
     }
     val queue=mutableStateListOf<CardFlight>()
     var motionPulse by mutableIntStateOf(0)
+    var releasePulse by mutableIntStateOf(0)
+    var gestureProgress by mutableFloatStateOf(-1f)
+    var pushRight by mutableStateOf(false)
+    var spriteLocal=Rect.Zero
+    fun localHand(p:Float):Offset {
+        val r=spriteLocal
+        val shoe=Offset(r.left+r.width*.24f,r.top+r.height*.94f)
+        val middle=Offset(r.left+r.width*.46f,r.top+r.height*.96f)
+        val release=Offset(r.left+r.width*(if(pushRight).84f else .16f),r.top+r.height*.98f)
+        return when {p<.38f->shoe;p<.55f->shoe+(middle-shoe)*((p-.38f)/.17f);else->middle+(release-middle)*((p-.55f)/.13f).coerceIn(0f,1f)}
+    }
+    fun releaseOrigin():Offset?=dealerBounds?.let { it.topLeft+localHand(.68f)-rootOrigin }
     var dealerBounds:Rect?=null
     var rootOrigin=Offset.Zero
     var handFraction:()->Offset = { Offset(.5f,.7f) }
@@ -84,27 +97,28 @@ internal fun CardFlightsOverlay(flights:CardFlights) {
             if (active.destination()!=null) active.prepare()
             withFrameNanos { };withFrameNanos { }
             flights.motionPulse++
-            delay(90)
-            val start=flights.handOrigin()
+            flights.pushRight=(active.destination()?.center?.x ?: 0f) >= (flights.dealerBounds?.center?.x ?: 0f)
+            val start=flights.releaseOrigin()
             if(start!=null && active.destination()!=null) {
                 origin=start;progress.snapTo(0f);moving=true
-                progress.animateTo(1f,tween(370,easing=FastOutSlowInEasing))
+                var released=false
+                progress.animateTo(1f,tween(1080,easing=LinearEasing)) { flights.gestureProgress=value; if(value>=.68f&&!released){flights.releasePulse++;released=true} }
             }
             } finally {
-                active.arrive();moving=false
+                active.arrive();moving=false;flights.gestureProgress=-1f
                 flights.queue.remove(active)
             }
         }
     }
     Box(Modifier.fillMaxSize()) {
-        if(moving && active!=null) active.destination()?.let { rect ->
+        if(moving && active!=null && progress.value>=.68f) active.destination()?.let { rect ->
             val density=LocalDensity.current
             val end=rect.center-flights.rootOrigin
-            val p=progress.value
-            val center=origin+(end-origin)*p-Offset(0f,sin(p*PI.toFloat())*55f*density.density)
+            val p=((progress.value-.68f)/.32f).coerceIn(0f,1f)
+            val center=origin+(end-origin)*p
             val w=with(density){rect.width.toDp()};val h=with(density){rect.height.toDp()}
             Box(Modifier.offset { IntOffset((center.x-rect.width/2).roundToInt(),(center.y-rect.height/2).roundToInt()) }
-                .testTag("dealing-card").graphicsLayer { rotationZ=-14f*(1f-p);scaleX=.72f+.28f*p;scaleY=scaleX }) {
+                .testTag("dealing-card").graphicsLayer { rotationZ=-6f*(1f-p);scaleX=.55f+.45f*p;scaleY=.35f+.65f*p }) {
                 CardView(active.face(),w,h)
             }
         }

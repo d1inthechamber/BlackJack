@@ -41,43 +41,24 @@ class TableSmokeTest {
         game.dealNextCard();restored.dealNextCard()
         org.junit.Assert.assertEquals(game.savedGame(),restored.savedGame())
     }
-    @Test fun centeredDealerRendersRealGeometry() {
+    @Test fun centeredCartoonDealerAndShoeRemainVisible() {
         rule.onNodeWithText("START NEW GAME").performClick()
         if(rule.onAllNodesWithText("START FRESH").fetchSemanticsNodes().isNotEmpty()) rule.onNodeWithText("START FRESH").performClick()
-        rule.onNodeWithText("MENU").assertIsDisplayed()
-        rule.waitForIdle()
-        var surface: DealerSurface?=null
-        fun find(view:android.view.View):DealerSurface? {
-            if(view is DealerSurface) return view
-            if(view is android.view.ViewGroup) for(i in 0 until view.childCount) find(view.getChildAt(i))?.let{return it}
-            return null
-        }
-        rule.runOnUiThread { surface=find(rule.activity.window.decorView) }
-        org.junit.Assert.assertNotNull("Dealer surface must be attached after table composition",surface)
-        rule.waitUntil(10000) { surface!!.actor.framesRendered>2 }
-        org.junit.Assert.assertEquals(0,surface!!.actor.lastGlError)
-        org.junit.Assert.assertTrue("Original artwork must be uploaded",surface!!.actor.textureLoaded)
-        val initialYaw=surface!!.actor.headYaw
-        rule.waitUntil(5000) { kotlin.math.abs(surface!!.actor.headYaw-initialYaw)>.5f }
+        rule.onNodeWithTag("cartoon-dealer").assertIsDisplayed()
+        rule.onNodeWithTag("visible-shoe").assertIsDisplayed()
+        val bounds=rule.onNodeWithTag("cartoon-dealer").fetchSemanticsNode().boundsInRoot
+        val root=rule.onRoot().fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertTrue(kotlin.math.abs(bounds.center.x-root.center.x)<root.width*.08)
         rule.onNodeWithText("AMBIENCE ON").performClick()
-        rule.waitUntil(5000) { surface!!.actor.headYaw==0f }
-        rule.onNodeWithText("AMBIENCE OFF").performClick()
-        val pos=IntArray(2)
-        rule.runOnUiThread { surface!!.getLocationOnScreen(pos) }
-        val screen=rule.activity.resources.displayMetrics.widthPixels
-        org.junit.Assert.assertTrue(kotlin.math.abs(pos[0]+surface!!.width/2-screen/2)<screen*.08)
+        rule.onNodeWithText("AMBIENCE OFF").assertExists()
+        rule.onNodeWithTag("visible-shoe").assertIsDisplayed()
     }
     private fun screenshot(name: String) {
         rule.waitForIdle()
-        // Compose can be idle before the separate GL surface has produced its first frame.
-        fun find(view:android.view.View):DealerSurface? {
-            if(view is DealerSurface) return view
-            if(view is android.view.ViewGroup) for(i in 0 until view.childCount) find(view.getChildAt(i))?.let{return it}
-            return null
-        }
-        var surface:DealerSurface?=null
-        rule.runOnUiThread { surface=find(rule.activity.window.decorView) }
-        rule.waitUntil(10000) { (surface?.actor?.framesRendered ?: 0)>4 }
+        rule.onNodeWithTag("cartoon-dealer").assertIsDisplayed()
+        rule.onNodeWithTag("visible-shoe").assertIsDisplayed()
+        // Atlas decoding runs off the main thread.
+        Thread.sleep(350)
         rule.mainClock.advanceTimeBy(1000)
         rule.waitForIdle()
         val bitmap=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
@@ -116,10 +97,10 @@ class TableSmokeTest {
         rule.runOnUiThread { model.startNew();model.game=g }
         rule.onNodeWithText("CONTINUE").performClick()
         rule.onNodeWithText("DEAL").performClick()
-        rule.mainClock.advanceTimeBy(3500)
+        rule.mainClock.advanceTimeBy(8000)
         rule.waitForIdle()
         rule.onNodeWithText("SPLIT").assertIsEnabled().performClick()
-        rule.mainClock.advanceTimeBy(2500)
+        rule.mainClock.advanceTimeBy(4000)
         rule.waitForIdle()
         rule.onNodeWithText("HIT").assertIsEnabled()
         rule.onNodeWithTag("dealing-card").assertDoesNotExist()
@@ -140,11 +121,11 @@ class TableSmokeTest {
         rule.mainClock.autoAdvance=false
         try {
             rule.onNodeWithText("HIT").performClick()
-            rule.mainClock.advanceTimeBy(200)
+            rule.mainClock.advanceTimeBy(850)
             rule.waitForIdle()
             val early=rule.onNodeWithTag("dealing-card").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.center
             rule.onNodeWithText("HIT").assertIsNotEnabled()
-            rule.mainClock.advanceTimeBy(160)
+            rule.mainClock.advanceTimeBy(110)
             rule.waitForIdle()
             val later=rule.onNodeWithTag("dealing-card").fetchSemanticsNode().boundsInRoot.center
             org.junit.Assert.assertTrue("Card must move down from the dealer to the player",later.y>early.y)
@@ -178,8 +159,23 @@ class TableSmokeTest {
         }
         rule.activityRule.scenario.recreate()
         val restored=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
-        rule.runOnIdle { org.junit.Assert.assertEquals(RoomStyle.WEST,restored.room) }
+        rule.runOnIdle { org.junit.Assert.assertEquals(RoomStyle.PUNK,restored.room) }
         rule.runOnUiThread { restored.selectRoom(RoomStyle.VEGAS) }
+    }
+    @Test fun musicChoicePersistsAndEveryTrackIsPlayable() {
+        val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { model.startNew() }
+        rule.onNodeWithText("CONTINUE").performClick()
+        if(rule.onAllNodesWithText("MUSIC ON").fetchSemanticsNodes().isNotEmpty())rule.onNodeWithText("MUSIC ON").performClick()
+        rule.onNodeWithText("MUSIC OFF").assertIsDisplayed()
+        rule.activityRule.scenario.recreate()
+        rule.onNodeWithText("MUSIC OFF").assertIsDisplayed()
+        RoomStyle.entries.forEach { room ->
+            val player=android.media.MediaPlayer.create(rule.activity,roomMusicResource(room))
+            org.junit.Assert.assertNotNull(player)
+            org.junit.Assert.assertTrue(player.duration>20000)
+            player.release()
+        }
     }
     @Test fun completedHandSummaryShowsExactPayoutAndCloses() {
         val ranks = mutableListOf("A", "9", "K", "8")

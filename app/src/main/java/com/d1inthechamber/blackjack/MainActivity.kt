@@ -328,17 +328,22 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
     var soundEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     var ambienceEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     val flights = remember(game, game.roundNumber) { CardFlights(game) }
-    TableSounds(game, soundEnabled)
+    val audioContext=androidx.compose.ui.platform.LocalContext.current
+    val musicPrefs=remember { audioContext.getSharedPreferences("audio",android.content.Context.MODE_PRIVATE) }
+    var musicEnabled by remember { mutableStateOf(musicPrefs.getBoolean("music",true)) }
+    RoomMusic(LocalRoomStyle.current,musicEnabled)
+    TableSounds(game, soundEnabled, flights.releasePulse)
 
     LaunchedEffect(game, game.shuffling) {
         if (game.shuffling) { delay(1800); game.finishShuffle() }
     }
     LaunchedEffect(game, game.dealStep, game.dealing) {
-        if (game.dealing) { delay(560); game.dealNextCard() }
+        if (game.dealing) { delay(180); while(flights.busy) delay(32); game.dealNextCard() }
     }
     LaunchedEffect(game, game.dealerPlaying) {
         while (game.dealerPlaying) {
-            delay(560)
+            delay(180)
+            while(flights.busy) delay(32)
             game.playDealerStep()
         }
     }
@@ -359,7 +364,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                 )
                 val neonFlicker by rememberInfiniteTransition(label = "brokenNeon").animateFloat(
                     initialValue = .03f,
-                    targetValue = .11f,
+                    targetValue = .16f,
                     animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
                     label = "neonGlow"
                 )
@@ -380,14 +385,14 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = onMenu) { Text("MENU") }
                         Text("${formatChips(game.bankroll)} CHIPS", color = Gold, fontWeight = FontWeight.Bold)
-                        Text("SHOE ${game.deckRemaining}", color = Gold, fontSize = 11.sp)
+                        Column(horizontalAlignment=Alignment.End) {
+                            Text("SHOE ${game.deckRemaining}", color = Gold, fontSize = 11.sp)
+                            TextButton(onClick={musicEnabled=!musicEnabled;musicPrefs.edit().putBoolean("music",musicEnabled).apply()},contentPadding=PaddingValues(0.dp),modifier=Modifier.height(32.dp)) { Text(if(musicEnabled) "MUSIC ON" else "MUSIC OFF",fontSize=11.sp) }
+                        }
                     }
                     // Dealer has a fixed centered slot, outside the hand scroller on every screen width.
-                    Dealer3D(game, ambienceEnabled, Modifier.fillMaxWidth()
-                        .height(if (compact) 66.dp else if (wide) 200.dp else if (tall) 185.dp else 145.dp)
-                        .onGloballyPositioned { flights.dealerBounds = it.boundsInRoot() },
-                        motionPulse = flights.motionPulse,
-                        onSurfaceReady = { view -> flights.handFraction = { Offset(view.actor.handFractionX,view.actor.handFractionY) } })
+                    DealerStage(game,ambienceEnabled,flights,Modifier.fillMaxWidth()
+                        .height(if(compact) 80.dp else if(wide) 220.dp else if(tall) 210.dp else 165.dp))
                     if (compact) {
                         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,

@@ -23,3 +23,8 @@ until cards land. Bankroll is shown alongside the bet controls.
 Five selectable rooms preserve the same saved hand and bank. Each new room has a background, themed card backs and paper/border colors, and its own articulated painted dealer. The user approved the 2D art direction. New dealer textures use a green-screen key in the fragment shader; Vegas retains its original alpha texture. The room preference is stored separately from the game save.
 
 Carnival follows the supplied costume photo and text-free card character reference. Pharaoh’s Palace uses Tutankhamun, Ironworks uses Ebenezer Scrooge, West Coast ’94 uses Eazy-E.
+
+## v2.3 cartoon animation update
+The user approved the 12-pose 2D cartoon direction. DealerStage replaces the relief renderer in the table UI, decodes keyed artwork once off the main thread, and shares a 1,080 ms clock with card movement. The shoe remains at the hand contact position. The card is drawn beneath the hand until release, then travels to the actual card slot; input stays locked until arrival. Reactions use round net from the player's perspective: positive=angry, zero=smug, negative=laugh.
+
+Six original instrumental music loops are generated with deterministic synthesis: lounge keys, carnival organ, Egyptian modal bells, industrial percussion, West Coast synth/bass, and punk distorted power chords. Music has an independent persistent toggle, audio focus handling, and lifecycle cleanup. The Backroom is the sixth selectable room.

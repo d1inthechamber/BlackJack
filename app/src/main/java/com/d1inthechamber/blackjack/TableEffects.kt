@@ -14,7 +14,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.sin
 
 @Composable
-fun TableSounds(game: BlackjackState, enabled: Boolean) {
+fun TableSounds(game: BlackjackState, enabled: Boolean, cardPulse:Int=game.drawPulse) {
     val context = LocalContext.current
     val pool = remember { SoundPool.Builder().setMaxStreams(3).setAudioAttributes(
         AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
@@ -28,15 +28,15 @@ fun TableSounds(game: BlackjackState, enabled: Boolean) {
         coin = pool.load(context, R.raw.chip_clink, 1)
         onDispose { pool.release() }
     }
-    var lastDraw by remember { mutableIntStateOf(game.drawPulse) }
+    var lastDraw by remember { mutableIntStateOf(cardPulse) }
     var lastBet by remember { mutableIntStateOf(game.bet) }
     var lastBank by remember { mutableDoubleStateOf(game.bankroll) }
-    LaunchedEffect(game.drawPulse, game.bet, game.bankroll, enabled) {
+    LaunchedEffect(cardPulse, game.bet, game.bankroll, enabled) {
         if (enabled && loaded == 2) {
-            if (game.drawPulse != lastDraw) pool.play(card, .45f, .45f, 1, 0, 1f)
+            if (cardPulse != lastDraw) pool.play(card, .45f, .45f, 1, 0, 1f)
             if (game.bet > lastBet || game.bankroll != lastBank) pool.play(coin, .3f, .3f, 1, 0, 1f)
         }
-        lastDraw = game.drawPulse; lastBet = game.bet; lastBank = game.bankroll
+        lastDraw = cardPulse; lastBet = game.bet; lastBank = game.bankroll
     }
 }
 
