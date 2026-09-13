@@ -61,7 +61,19 @@ class TableSmokeTest {
         Thread.sleep(350)
         rule.mainClock.advanceTimeBy(1000)
         rule.waitForIdle()
-        val bitmap=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val automation=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+        val activeWindow=automation.rootInActiveWindow
+        // Some API 35 emulator boots leave a launcher ANR over an otherwise healthy app.
+        // Dismiss only Quickstep's dialog. Never dismiss a Royal Felt/game ANR.
+        if(activeWindow?.findAccessibilityNodeInfosByText("Quickstep isn't responding")?.isNotEmpty()==true) {
+            activeWindow.findAccessibilityNodeInfosByText("Close app").firstOrNull()
+                ?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+            Thread.sleep(500)
+        }
+        val remaining=automation.rootInActiveWindow
+        org.junit.Assert.assertTrue("An ANR must not cover the game screenshot",
+            remaining?.findAccessibilityNodeInfosByText("isn't responding")?.isEmpty()!=false)
+        val bitmap=automation.takeScreenshot()
         val dir=java.io.File(rule.activity.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
         java.io.File(dir,"$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
         bitmap.recycle()
