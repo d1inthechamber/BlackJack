@@ -304,12 +304,21 @@ class BlackjackViewModel(application: android.app.Application) : androidx.lifecy
         private set
     fun selectRoom(value: RoomStyle) { room=value; roomPreferences.save(value) }
     private val store = GameStore(application)
-    var game by mutableStateOf(store.load() ?: BlackjackState())
-    var hasSaved by mutableStateOf(store.exists())
+    private val casinoStore = CasinoStore(application)
+    private val archive = casinoStore.load()
+    internal var casino = archive?.casino ?: CasinoState()
+    var revision by mutableIntStateOf(0)
+        private set
+    var game by mutableStateOf(archive?.blackjack?.restore() ?: store.load() ?: BlackjackState())
+    var hasSaved by mutableStateOf(archive != null || store.exists())
     init { attach() }
-    private fun attach() { game.onChanged = { store.save(game); hasSaved = true } }
-    fun save() { store.save(game); hasSaved = true }
-    fun startNew() { game = BlackjackState(); attach(); save() }
+    private fun attach() { game.onChanged = { save() } }
+    fun save() { casinoStore.save(game,casino); hasSaved = true; revision++ }
+    fun startNew() { casino=CasinoState(); game = BlackjackState(); attach(); save() }
+    internal fun change(action:()->Unit) { action(); save() }
+    internal fun refill() { if(!game.inRound && !game.shuffling && game.bankroll<10) { game.bankroll+=1000;save() } }
+    internal fun enter(name:String) { casino.lastGame=name;save() }
+
 }
 
 class MainActivity : ComponentActivity() {

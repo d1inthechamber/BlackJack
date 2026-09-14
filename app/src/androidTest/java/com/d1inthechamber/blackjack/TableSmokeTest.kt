@@ -9,8 +9,8 @@ import org.junit.Test
 class TableSmokeTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
     @Test fun launchesWithArtworkAndSurvivesRecreation() {
-        rule.onNodeWithText("ROYAL FELT").assertIsDisplayed()
-        rule.onNodeWithText("START NEW GAME").performClick()
+        rule.onNodeWithText("CASINO CHAOS").assertIsDisplayed()
+        rule.onNodeWithText("START NEW GAME").performScrollTo().performClick()
         if(rule.onAllNodesWithText("START FRESH").fetchSemanticsNodes().isNotEmpty()) rule.onNodeWithText("START FRESH").performClick()
         rule.onNodeWithText("MENU").assertIsDisplayed()
         rule.onNodeWithText("SOUND ON").performClick()
@@ -21,10 +21,10 @@ class TableSmokeTest {
     @Test fun menuContinuePreservesBetAndBuyInResetsBankroll() {
         val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnUiThread { model.startNew(); model.game.addBet(100) }
-        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
         rule.onNodeWithText("100 CHIPS").assertExists()
         rule.onNodeWithText("MENU").performClick()
-        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
         rule.onNodeWithText("100 CHIPS").assertExists()
         rule.runOnUiThread { model.game.bankroll=0.0; model.game.bet=0; model.save() }
         rule.onNodeWithText("BUY BACK IN • 1,000 FREE CHIPS").performClick()
@@ -42,7 +42,7 @@ class TableSmokeTest {
         org.junit.Assert.assertEquals(game.savedGame(),restored.savedGame())
     }
     @Test fun centeredCartoonDealerAndShoeRemainVisible() {
-        rule.onNodeWithText("START NEW GAME").performClick()
+        rule.onNodeWithText("START NEW GAME").performScrollTo().performClick()
         if(rule.onAllNodesWithText("START FRESH").fetchSemanticsNodes().isNotEmpty()) rule.onNodeWithText("START FRESH").performClick()
         rule.onNodeWithTag("cartoon-dealer").assertIsDisplayed()
         rule.onNodeWithTag("visible-shoe").assertIsDisplayed()
@@ -89,7 +89,7 @@ class TableSmokeTest {
         g.addBet(25);g.beginDeal();repeat(4){g.dealNextCard()}
         val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnUiThread { model.startNew();model.game=g }
-        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
         rule.onNodeWithText("HIT").performClick()
         rule.onAllNodesWithText("4♠")[0].assertIsDisplayed()
         rule.onNodeWithText("SHOE 100").assertExists()
@@ -108,7 +108,7 @@ class TableSmokeTest {
         g.addBet(25)
         val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnUiThread { model.startNew();model.game=g }
-        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
         rule.onNodeWithText("DEAL").performClick()
         rule.mainClock.advanceTimeBy(8000)
         rule.waitForIdle()
@@ -129,7 +129,7 @@ class TableSmokeTest {
         g.addBet(25);g.beginDeal();repeat(4){g.dealNextCard()}
         val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnUiThread { model.startNew();model.game=g }
-        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
         rule.onNodeWithText("HIT").assertIsEnabled()
         rule.mainClock.autoAdvance=false
         try {
@@ -153,7 +153,7 @@ class TableSmokeTest {
         rule.runOnUiThread { model.startNew();model.game.addBet(25) }
         val before=model.game.savedGame()
         for(room in RoomStyle.entries.filter { it!=RoomStyle.VEGAS }) {
-            rule.onNodeWithText("CHOOSE ROOM").performClick()
+            rule.onNodeWithText("CHOOSE ROOM").performScrollTo().performClick()
             rule.onNodeWithText(room.title,substring=true).performScrollTo().performClick()
             rule.runOnIdle {
                 org.junit.Assert.assertEquals(room,model.room)
@@ -165,7 +165,7 @@ class TableSmokeTest {
                     bitmap?.recycle()
                 }
             }
-            rule.onNodeWithText("CONTINUE").performClick()
+            rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
             rule.onNodeWithText("AVAILABLE 1000 CHIPS").assertIsDisplayed()
             screenshot("room-${room.id}")
             rule.onNodeWithText("MENU").performClick()
@@ -178,7 +178,7 @@ class TableSmokeTest {
     @Test fun musicChoicePersistsAndEveryTrackIsPlayable() {
         val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnUiThread { model.startNew() }
-        rule.onNodeWithText("CONTINUE").performClick()
+        rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
         if(rule.onAllNodesWithText("MUSIC ON").fetchSemanticsNodes().isNotEmpty())rule.onNodeWithText("MUSIC ON").performClick()
         rule.onNodeWithText("MUSIC OFF").assertIsDisplayed()
         rule.activityRule.scenario.recreate()
