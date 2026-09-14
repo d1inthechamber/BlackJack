@@ -29,6 +29,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 @Composable
 fun GameRoot(model:BlackjackViewModel) {
@@ -59,7 +68,7 @@ fun GameRoot(model:BlackjackViewModel) {
                     Button(enabled=model.hasSaved,onClick={enter(model.casino.lastGame)},modifier=Modifier.fillMaxWidth()){Text("CONTINUE")}
                     val locked=model.game.inRound||model.game.shuffling
                     if(locked)Text("Your blackjack hand is waiting. Finish it before entering another game.",color=model.room.accent)
-                    val entries=listOf(Triple("BLACKJACK","♠","Your original table • animated dealers"),Triple("SLOTS","7","Themed reels • fixed odds • instant chaos"),Triple("SOLITAIRE","♣","Klondike • draw 1 or 3 • win 100 chips"),Triple("POKER","♦","Texas Hold’em • three distinct rivals"))
+                    val entries=listOf(Triple("BLACKJACK","♠","Your original table • animated dealers"),Triple("SLOTS","7","Themed reels • fixed odds • instant chaos"),Triple("SOLITAIRE","♣","Classic solitaire • draw 1 or 3 • win 100 chips"),Triple("POKER","♦","Texas Hold’em • three distinct rivals"))
                     for((name,symbol,detail) in entries) {
                         Card(onClick={enter(name)},enabled=!locked||name=="BLACKJACK",colors=CardDefaults.cardColors(containerColor=Color(0xE516141C)),border=BorderStroke(1.dp,model.room.accent.copy(alpha=.5f)),modifier=Modifier.fillMaxWidth().padding(vertical=4.dp)){
                             Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Text(symbol,color=model.room.accent,fontSize=34.sp,modifier=Modifier.width(50.dp));Column(Modifier.weight(1f)){Text(name,fontWeight=FontWeight.Black,color=Color.White,fontSize=20.sp);Text(detail,color=Color.LightGray,fontSize=12.sp)}}
@@ -117,25 +126,42 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
     var help by remember{mutableStateOf(false)}
     val symbols=slotSymbols(model.room)
     LaunchedEffect(spinning){if(spinning){repeat(24){tick++;settled=when{it<12->0;it<18->1;else->2};delay(65)};settled=3;spinning=false}}
+    val pull:()->Unit={if(!spinning&&model.game.bankroll>=game.bet){model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};settled=0;spinning=true}}
     CasinoFrame(model,"CHAOS SLOTS",onBack){
         Text("${model.room.title} • ONE PAYLINE",color=model.room.accent)
-        Surface(color=Color(0xEF191319),shape=RoundedCornerShape(24.dp),border=BorderStroke(3.dp,model.room.accent),modifier=Modifier.fillMaxWidth().padding(vertical=12.dp)){
-            Column(Modifier.padding(14.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                Text("★  C H A O S  ★",color=model.room.accent,fontSize=21.sp,fontWeight=FontWeight.Black)
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(7.dp)){
+        Row(Modifier.fillMaxWidth().padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
+        Surface(color=Color(0xFF302019),shape=RoundedCornerShape(topStart=36.dp,topEnd=36.dp,bottomStart=12.dp,bottomEnd=12.dp),border=BorderStroke(4.dp,model.room.accent),modifier=Modifier.weight(1f)){
+            Column(Modifier.background(Brush.verticalGradient(listOf(Color(0xFF463329),Color(0xFF100F15),Color(0xFF35251F)))).padding(10.dp),horizontalAlignment=Alignment.CenterHorizontally){
+                Text("★ CASINO CHAOS ★",color=model.room.accent,fontSize=18.sp,fontWeight=FontWeight.Black)
+                Text("ONE ARM BANDIT",color=Color(0xFFF0D7A0),fontSize=10.sp,letterSpacing=2.sp)
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth().border(4.dp,Color(0xFFB4AAA0),RoundedCornerShape(8.dp)).padding(6.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)){
                     repeat(3){i->val n=if(spinning&&i>=settled)(tick+i*2)%5 else game.reels[i]
-                        Surface(color=Color(0xFFFFF0D7),shape=RoundedCornerShape(14.dp),modifier=Modifier.weight(1f).height(140.dp).testTag("slot-reel-$i")){
-                            Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){SlotGlyph(n,model.room,Modifier.size(62.dp));Text(symbols[n],fontSize=10.sp,color=Color(0xFF25131F),fontWeight=FontWeight.Black)}
+                        Box(Modifier.weight(1f).height(174.dp).testTag("slot-reel-$i").clipToBounds().background(Color(0xFFFFF0D7))){
+                            Column(Modifier.fillMaxWidth().offset(y=if(spinning&&i>=settled)((tick%3)*8-8).dp else 0.dp),horizontalAlignment=Alignment.CenterHorizontally){
+                                SlotGlyph((n+4)%5,model.room,Modifier.size(40.dp))
+                                Box(Modifier.fillMaxWidth().height(84.dp).border(1.dp,Color(0xFFA93338)),contentAlignment=Alignment.Center){SlotGlyph(n,model.room,Modifier.size(58.dp))}
+                                SlotGlyph((n+1)%5,model.room,Modifier.size(40.dp))
+                            }
+                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha=.55f),Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.55f)))))
                         }
                     }
                 }
-                Text("━━━━  PAYLINE  ━━━━",color=model.room.accent,fontSize=14.sp,modifier=Modifier.padding(top=8.dp))
+                Text("◀  WIN LINE  ▶",color=model.room.accent,fontSize=12.sp)
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth().background(Color(0xFF090909),RoundedCornerShape(5.dp)).padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){
+                    Text("BET ${game.bet}",color=Color(0xFFEDB958),fontSize=12.sp)
+                    Text(if(spinning)"WIN —" else "WIN ${game.returned}",color=Color(0xFFEDB958),fontSize=12.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(38.dp).border(3.dp,Color(0xFF797575),RoundedCornerShape(9.dp)).background(Color(0xFF09090B)),contentAlignment=Alignment.Center){Text("COIN RETURN",color=Color.Gray,fontSize=9.sp)}
             }
+        }
+        BanditLever(spinning,!spinning&&model.game.bankroll>=game.bet,pull,Modifier.width(46.dp).height(290.dp))
         }
         Text(if(spinning)"Let them roll…" else game.message,color=if(game.returned>0)model.room.accent else Color.White,fontSize=18.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(10,25,50).forEach{n->OutlinedButton(onClick={model.change{game.bet=n}},enabled=!spinning,modifier=Modifier.weight(1f)){Text(if(n==game.bet)"● $n" else "$n")}}}
-        Button(onClick={if(!spinning&&model.game.bankroll>=game.bet){model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};settled=0;spinning=true}},enabled=!spinning&&model.game.bankroll>=game.bet,modifier=Modifier.fillMaxWidth().height(60.dp).testTag("slot-spin")){Text(if(spinning)"SPINNING…" else "SPIN • ${game.bet} CHIPS",fontSize=18.sp,fontWeight=FontWeight.Black)}
+        Button(onClick=pull,enabled=!spinning&&model.game.bankroll>=game.bet,modifier=Modifier.fillMaxWidth().height(60.dp).testTag("slot-spin")){Text(if(spinning)"SPINNING…" else "SPIN • ${game.bet} CHIPS",fontSize=18.sp,fontWeight=FontWeight.Black)}
         TextButton(onClick={help=true}){Text("PAY TABLE & RULES")}
         Text("Spin ${game.spins} • Payout includes your stake",fontSize=12.sp,color=Color.LightGray)
     }
@@ -152,48 +178,57 @@ private fun SlotGlyph(n:Int,room:RoomStyle,modifier:Modifier){
 internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
     val g=model.casino.solitaire
     var selected by remember(g){mutableStateOf<SolitairePick?>(null)}
-    var note by remember{mutableStateOf("Tap a face-up card, then a column or foundation.")}
+    var note by remember{mutableStateOf("Tap a card to move it. Tap a destination to place a selected stack.")}
     var newDraw by remember{mutableStateOf<Int?>(null)}
     fun move(dest:Int){val p=selected?:return;model.change{if(g.move(p,dest)){selected=null;note="Good move.";if(g.won&&!g.rewarded){g.rewarded=true;model.game.bankroll+=100;note="Complete! +100 chips"}}else note="That card cannot move there."}}
+    fun select(p:SolitairePick){
+        if(selected==p){selected=null;return}
+        val dest=((7..10).toList()+(0..6).toList()).firstOrNull{it!=p.pile&&g.legal(p,it)}
+        selected=p
+        if(dest!=null)move(dest)
+    }
     CasinoFrame(model,"SOLITAIRE",onBack){
-        Text("KLONDIKE • DRAW ${g.drawCount} • ${g.moves} MOVES",color=model.room.accent,fontSize=12.sp)
+        Text("CLASSIC • DRAW ${g.drawCount} • ${g.moves} MOVES",color=model.room.accent,fontSize=12.sp)
         Text(if(g.won)"YOU CLEARED THE TABLE • +100 CHIPS" else note,color=Color.White,fontSize=13.sp)
         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
             OutlinedButton(onClick={model.change{g.draw()};selected=null},enabled=!g.won){Text(if(g.stock.isEmpty())"RECYCLE" else "DRAW (${g.stock.size})")}
             OutlinedButton(onClick={model.change{g.undo()};selected=null},enabled=g.canUndo){Text("UNDO")}
             TextButton(onClick={val h=g.hint();if(h!=null){selected=h.first;note="Try ${if(h.second>=7)"foundation ${h.second-6}" else "column ${h.second+1}"}."}else note=if(g.stock.isNotEmpty()||g.waste.isNotEmpty())"Try drawing or recycling the stock." else "No available moves. Try undo or a new deal."}){Text("HINT")}
         }
-        // Horizontal scrolling keeps seven full-size, tappable columns on a narrow phone.
-        Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).width(532.dp)){
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                Column(Modifier.width(68.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("STOCK",color=Color.LightGray,fontSize=10.sp);Box(Modifier.clickable{model.change{g.draw()};selected=null}){if(g.stock.isNotEmpty())CardView("?",68.dp,94.dp) else CardSlot("↻",68.dp)}}
-                Column(Modifier.width(68.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("WASTE",color=Color.LightGray,fontSize=10.sp);val p=SolitairePick(-1,g.waste.lastIndex);Box(Modifier.border(if(selected==p)3.dp else 0.dp,model.room.accent).clickable{if(g.waste.isNotEmpty())selected=p}){g.waste.lastOrNull()?.let{CardView(it.toString(),68.dp,94.dp)}?:CardSlot("—",68.dp)}}
-                Spacer(Modifier.width(0.dp))
-                repeat(4){f->Column(horizontalAlignment=Alignment.CenterHorizontally){Text("HOME ${f+1}",color=model.room.accent,fontSize=10.sp);Box(Modifier.clickable{if(selected!=null)move(f+7)else if(g.foundations[f].isNotEmpty())selected=SolitairePick(f+7,g.foundations[f].lastIndex)}){g.foundations[f].lastOrNull()?.let{CardView(it.toString(),68.dp,94.dp)}?:CardSlot("A",68.dp)}}}
+        BoxWithConstraints(Modifier.fillMaxWidth()){
+        val cardWidth=(maxWidth-24.dp)/7
+        val cardHeight=cardWidth*1.42f
+        Column(Modifier.fillMaxWidth()){
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){
+                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("STOCK",color=Color.LightGray,fontSize=10.sp);Box(Modifier.clickable{model.change{g.draw()};selected=null}){if(g.stock.isNotEmpty())CardView("?",cardWidth,cardHeight) else CardSlot("↻",cardWidth,cardHeight)}}
+                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("WASTE",color=Color.LightGray,fontSize=10.sp);val p=SolitairePick(-1,g.waste.lastIndex);Box(Modifier.border(if(selected==p)3.dp else 0.dp,model.room.accent).clickable{if(g.waste.isNotEmpty())select(p)}){g.waste.lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("—",cardWidth,cardHeight)}}
+                Spacer(Modifier.width(cardWidth))
+                repeat(4){f->Column(horizontalAlignment=Alignment.CenterHorizontally){Text("HOME ${f+1}",color=model.room.accent,fontSize=10.sp);Box(Modifier.clickable{if(selected!=null)move(f+7)else if(g.foundations[f].isNotEmpty())selected=SolitairePick(f+7,g.foundations[f].lastIndex)}){g.foundations[f].lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("A",cardWidth,cardHeight)}}}
             }
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                repeat(7){c->Column(Modifier.width(68.dp)){
+            Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
+                repeat(7){c->Column(Modifier.width(cardWidth)){
                     Text("${c+1}",color=model.room.accent,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
                     val count=g.columns[c].size
-                    Box(Modifier.width(68.dp).height((maxOf(0,count-1)*30+100).dp).testTag("sol-column-$c")){
-                        if(count==0)Box(Modifier.clickable{move(c)}){CardSlot("K",68.dp)}
+                    Box(Modifier.width(cardWidth).height((maxOf(0,count-1)*30+100).dp).testTag("sol-column-$c")){
+                        if(count==0)Box(Modifier.clickable{move(c)}){CardSlot("K",cardWidth,cardHeight)}
                         g.columns[c].forEachIndexed{i,card->val p=SolitairePick(c,i)
                             Box(Modifier.offset(y=(i*30).dp).border(if(selected==p)3.dp else 0.dp,model.room.accent,RoundedCornerShape(12.dp)).clickable{
-                                if(selected!=null&&selected!!.pile!=c)move(c)else if(i>=g.hidden[c])selected=if(selected==p)null else p
-                            }){CardView(if(i<g.hidden[c])"?" else card.toString(),68.dp,94.dp)}
+                                if(selected!=null&&selected!!.pile!=c)move(c)else if(i>=g.hidden[c])select(p)
+                            }){CardView(if(i<g.hidden[c])"?" else card.toString(),cardWidth,cardHeight)}
                         }
                     }
                 }}
             }
         }
-        Text("Scroll sideways for all 7 columns. Build down in alternating colours; empty columns take kings. Foundations build A → K by suit. Unlimited stock recycling.",fontSize=12.sp,color=Color.LightGray)
+        }
+        Text("Build down in alternating colours; empty columns take kings. Foundations build A → K by suit. Unlimited stock recycling.",fontSize=12.sp,color=Color.LightGray)
         Row{TextButton(onClick={newDraw=1}){Text("NEW • DRAW 1")};TextButton(onClick={newDraw=3}){Text("NEW • DRAW 3")}}
     }
     if(newDraw!=null)AlertDialog(onDismissRequest={newDraw=null},title={Text("Deal new solitaire?")},text={Text("Replaces this solitaire layout. Your other games and chips stay saved.")},confirmButton={TextButton(onClick={model.change{model.casino.solitaire=SolitaireGame(newDraw!!)};selected=null;newDraw=null;note="New deal. Good luck."}){Text("DEAL NEW")}},dismissButton={TextButton(onClick={newDraw=null}){Text("CANCEL")}})
 }
 @Composable
-private fun CardSlot(text:String,width:androidx.compose.ui.unit.Dp){Box(Modifier.size(width,94.dp).border(1.dp,LocalRoomStyle.current.accent.copy(alpha=.5f),RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha=.3f)),contentAlignment=Alignment.Center){Text(text,color=LocalRoomStyle.current.accent,fontSize=25.sp)}}
+private fun CardSlot(text:String,width:androidx.compose.ui.unit.Dp,height:androidx.compose.ui.unit.Dp=94.dp){Box(Modifier.size(width,height).border(1.dp,LocalRoomStyle.current.accent.copy(alpha=.5f),RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha=.3f)),contentAlignment=Alignment.Center){Text(text,color=LocalRoomStyle.current.accent,fontSize=25.sp)}}
 
 @Composable
 internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
@@ -213,8 +248,8 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
                 g.seats.drop(1).forEachIndexed{j,p->val i=j+1
                     Surface(Modifier.weight(1f).testTag("poker-opponent-$i"),color=Color(0xD91A1420),shape=RoundedCornerShape(16.dp),border=BorderStroke(if(g.actor==i)2.dp else 1.dp,if(g.actor==i)model.room.accent else Color.DarkGray)){
                         Column(Modifier.padding(7.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                            PokerPortrait(p,j,g.actor==i,Modifier.size(75.dp))
-                            Text(p.name,color=model.room.accent,fontWeight=FontWeight.Black,fontSize=14.sp)
+                            PokerPortrait(p,j,g.actor==i,Modifier.fillMaxWidth().height(120.dp))
+                            Text(RoomStyle.entries[(model.room.ordinal+j)%RoomStyle.entries.size].host,color=model.room.accent,fontWeight=FontWeight.Black,fontSize=14.sp)
                             Text(p.personality.label,color=Color.LightGray,fontSize=10.sp)
                             Text("${p.stack} chips",color=Color.White,fontSize=12.sp)
                             Text(if(p.folded)"FOLDED" else p.tell,color=Color.LightGray,fontSize=10.sp,textAlign=TextAlign.Center,modifier=Modifier.heightIn(min=30.dp))
@@ -265,30 +300,36 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
 
 @Composable
 private fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifier){
-    val room=LocalRoomStyle.current
-    val motion by rememberInfiniteTransition(label="poker-gesture").animateFloat(0f,1f,infiniteRepeatable(tween(650),RepeatMode.Reverse),label="gesture")
-    Canvas(modifier){
-        val w=size.width;val h=size.height;val nod=if(p.expression==2)0f else if(acting)motion*h*.025f else 0f
-        val skin=listOf(Color(0xFFC58860),Color(0xFF885236),Color(0xFFE1B38B))[index]
-        drawOval(room.button,Offset(w*.12f,h*.68f),Size(w*.76f,h*.5f))
-        drawOval(Color(0xFF171018),Offset(w*.2f,h*.08f+nod),Size(w*.6f,h*.74f))
-        drawOval(skin,Offset(w*.25f,h*.17f+nod),Size(w*.5f,h*.58f))
-        val eyeShift=if(p.expression==4)w*.02f*motion else 0f
-        listOf(.39f,.61f).forEach{x->drawOval(Color.White,Offset(w*(x-.065f),h*.38f+nod),Size(w*.13f,h*.075f));drawCircle(Color(0xFF15101B),w*.027f,Offset(w*x+eyeShift,h*.419f+nod))}
-        val angry=p.expression==1
-        drawLine(Color(0xFF241723),Offset(w*.32f,h*(if(angry).32f else .34f)+nod),Offset(w*.45f,h*.36f+nod),w*.034f)
-        drawLine(Color(0xFF241723),Offset(w*.55f,h*.36f+nod),Offset(w*.68f,h*(if(angry).32f else .34f)+nod),w*.034f)
-        if(p.expression==3)drawArc(Color(0xFF361221),0f,180f,true,Offset(w*.37f,h*.54f+nod),Size(w*.26f,h*.17f)) else drawLine(Color(0xFF512C28),Offset(w*.42f,h*.63f+nod),Offset(w*.58f,h*(if(angry).61f else .63f)+nod),w*.025f)
-        when(room){
-            RoomStyle.PUNK->{val hair=Path().apply{moveTo(w*.3f,h*.25f);lineTo(w*.33f,0f);lineTo(w*.43f,h*.12f);lineTo(w*.52f,0f);lineTo(w*.57f,h*.13f);lineTo(w*.7f,.04f*h);lineTo(w*.72f,h*.28f);close()};drawPath(hair,listOf(Color.Cyan,Color.Magenta,Color(0xFF9DC745))[index])}
-            RoomStyle.EGYPT->{drawRect(room.accent,Offset(w*.24f,h*.12f),Size(w*.52f,h*.12f));drawCircle(room.button,w*.07f,Offset(w*.5f,h*.14f))}
-            RoomStyle.CARNIVAL->{drawCircle(Color.White,w*.1f,Offset(w*.36f,h*.49f));drawCircle(Color.White,w*.1f,Offset(w*.64f,h*.49f));drawCircle(Color(0xFFB41E42),w*.055f,Offset(w*.5f,h*.5f));drawOval(Color(0xFF553F2C),Offset(w*.18f,h*.06f),Size(w*.64f,h*.2f))}
-            RoomStyle.IRON->{drawRect(Color(0xFF382D29),Offset(w*.3f,0f),Size(w*.4f,h*.23f));drawLine(room.accent,Offset(w*.2f,h*.23f),Offset(w*.8f,h*.23f),h*.04f);drawCircle(room.accent,w*.09f,Offset(w*.62f,h*.42f),style=Stroke(w*.02f))}
-            RoomStyle.WEST->{drawArc(Color(0xFF171A22),180f,180f,true,Offset(w*.21f,h*.04f),Size(w*.58f,h*.36f));drawLine(room.accent,Offset(w*.23f,h*.22f),Offset(w*.84f,h*.22f),h*.04f)}
-            else->{drawRect(Color(0xFF523724),Offset(w*.3f,h*.04f),Size(w*.4f,h*.2f));drawOval(room.accent,Offset(w*.16f,h*.2f),Size(w*.68f,h*.055f))}
-        }
-        val tap=if(p.expression==1)motion*h*.07f else 0f
-        drawOval(skin,Offset(w*.72f,h*.77f-tap),Size(w*.21f,h*.12f))
-        if(p.expression==5)drawLine(skin,Offset(w*.78f,h*.82f),Offset(w*.6f,h*.73f-motion*h*.07f),w*.08f)
+    val room=RoomStyle.entries[(LocalRoomStyle.current.ordinal+index)%RoomStyle.entries.size]
+    val context=LocalContext.current
+    val sheet by produceState<ImageBitmap?>(null,room){value=withContext(Dispatchers.Default){decodeDealer(context,room)}}
+    var frame by remember { mutableIntStateOf(0) }
+    LaunchedEffect(p.expression,acting){
+        frame=when(p.expression){1->6;2->0;3->8;4->9;5->1;else->0}
+        if(acting&&p.expression==3){repeat(4){frame=if(it%2==0)10 else 11;delay(240)};frame=8}
+    }
+    Canvas(modifier.clipToBounds().semantics{contentDescription=room.host}){
+        // Use the very same keyed animation atlas as the blackjack dealer.
+        sheet?.let{drawDealerPose(it,room,frame,-size.width*.16f,size.width*1.32f)}
+        drawLine(room.accent,Offset(0f,size.height-2f),Offset(size.width,size.height-2f),4f)
+    }
+}
+
+@Composable
+private fun BanditLever(spinning:Boolean,enabled:Boolean,onPull:()->Unit,modifier:Modifier){
+    var dragged by remember{mutableFloatStateOf(0f)}
+    val pull by animateFloatAsState(if(spinning)1f else dragged,tween(180),label="lever")
+    Canvas(modifier.semantics{contentDescription="Pull slot machine lever"}.clickable(enabled=enabled,onClick=onPull)
+        .pointerInput(enabled){if(enabled)detectVerticalDragGestures(
+            onDragEnd={if(dragged>.3f)onPull();dragged=0f},
+            onDragCancel={dragged=0f},
+            onVerticalDrag={change,amount->change.consume();dragged=(dragged+amount/size.height*.9f).coerceIn(0f,1f)})}){
+        val pivot=Offset(size.width*.24f,size.height*.72f)
+        val knob=Offset(size.width*.68f,size.height*(.12f+pull*.58f))
+        drawCircle(Color(0xFF68636B),size.width*.23f,pivot)
+        drawLine(Color(0xFF69666B),pivot,knob,size.width*.22f)
+        drawLine(Color(0xFFDDD8CE),pivot-Offset(2f,0f),knob-Offset(2f,0f),size.width*.08f)
+        drawCircle(Color(0xFF851E2B),size.width*.29f,knob)
+        drawCircle(Color(0xFFE66562),size.width*.09f,knob-Offset(size.width*.08f,size.width*.09f))
     }
 }

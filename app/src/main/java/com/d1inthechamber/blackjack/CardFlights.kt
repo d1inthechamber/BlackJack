@@ -28,13 +28,19 @@ private class CardIdentity(val card:Card) {
     override fun hashCode()=System.identityHashCode(card)
 }
 internal class CardFlight(val card:Card,val face:()->String,val destination:()->Rect?,val prepare:suspend ()->Unit = {},val arrive:()->Unit)
-internal class CardFlights(game:BlackjackState) {
+internal class CardFlights(private val game:BlackjackState) {
     // Identity distinguishes repeated ranks/suits in a six-deck shoe, and preserves
     // existing cards when a pair is split. Restored cards start seated at the table.
     private val seen=IdentityHashMap<Card,Boolean>().apply {
         game.dealer.forEach { put(it,true) }
         game.hands.forEach { hand -> hand.cards.forEach { put(it,true) } }
     }
+    private val landed=IdentityHashMap<Card,Boolean>().apply { putAll(seen) }
+    var arrivalRevision by mutableIntStateOf(0)
+    fun hasArrived(card:Card):Boolean { arrivalRevision;return landed.containsKey(card) }
+    fun visible(cards:List<Card>)=cards.filter { hasArrived(it) }
+    fun landed(card:Card){landed[card]=true;arrivalRevision++}
+    val pending get()=busy || game.dealer.any{!hasArrived(it)} || game.hands.any{h->h.cards.any{!hasArrived(it)}}
     val queue=mutableStateListOf<CardFlight>()
     var motionPulse by mutableIntStateOf(0)
     var releasePulse by mutableIntStateOf(0)
@@ -70,7 +76,7 @@ internal fun DealtCard(card:Card,text:String,width:Dp,height:Dp) {
     val flights=LocalCardFlights.current
     val identity = CardIdentity(card)
     val requester = remember { BringIntoViewRequester() }
-    var arrived by remember(flights,identity) { mutableStateOf(flights==null || flights.hasSeen(card)) }
+    var arrived by remember(flights,identity) { mutableStateOf(flights==null || flights.hasArrived(card)) }
     var bounds by remember { mutableStateOf<Rect?>(null) }
     val currentText by rememberUpdatedState(text)
     LaunchedEffect(flights,identity) {
@@ -105,7 +111,7 @@ internal fun CardFlightsOverlay(flights:CardFlights) {
                 progress.animateTo(1f,tween(1080,easing=LinearEasing)) { flights.gestureProgress=value; if(value>=.68f&&!released){flights.releasePulse++;released=true} }
             }
             } finally {
-                active.arrive();moving=false;flights.gestureProgress=-1f
+                flights.landed(active.card);active.arrive();moving=false;flights.gestureProgress=-1f
                 flights.queue.remove(active)
             }
         }

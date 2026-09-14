@@ -57,9 +57,9 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
     val back=remember(room) { room.cardBack?.let { ImageBitmap.imageResource(context.resources,it) } }
     var reactionFrame by remember(room) { mutableIntStateOf(0) }
     val mood=if(game.finished&&!game.shuffling)dealerMood(game.lastRound?.net) else DealerMood.IDLE
-    LaunchedEffect(mood,animated,game.roundNumber,flights.busy) {
+    LaunchedEffect(mood,animated,game.roundNumber,flights.pending) {
         reactionFrame=0
-        if(animated&&!flights.busy) when(mood) {
+        if(animated&&!flights.pending) when(mood) {
             DealerMood.IDLE->reactionFrame=0
             DealerMood.ANGRY->{reactionFrame=6;delay(260);reactionFrame=7;delay(300);reactionFrame=6}
             DealerMood.SMUG->reactionFrame=8
@@ -77,7 +77,7 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
         val width=with(density){maxWidth.toPx()};val height=with(density){maxHeight.toPx()}
         val side=min(height-with(density){32.dp.toPx()},width*.76f).coerceAtLeast(1f)
         val left=(width-side)/2f
-        val cw=max(side*.27f,with(density){44.dp.toPx()})
+        val cw=max(side*.36f,with(density){44.dp.toPx()})
         val shoe=Offset(left+side*.28f,side*.94f)
         SideEffect{flights.spriteLocal=Rect(left,0f,left+side,side)}
         Canvas(Modifier.fillMaxSize()) {
@@ -91,6 +91,7 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             val rail=Path().apply{moveTo(0f,tableY+16.dp.toPx());quadraticBezierTo(width*.5f,tableY-13.dp.toPx(),width,tableY+16.dp.toPx())}
             drawPath(rail,Color(0xFF37251D),style=Stroke(9.dp.toPx()))
             drawPath(rail,room.accent.copy(alpha=.65f),style=Stroke(1.2.dp.toPx()))
+            sprite()
             // Angled wood-and-brass shoe with a deep card stack, separate from the live card.
             val sx=shoe.x-cw*.55f;val sy=shoe.y-cw*.29f
             val casing=Path().apply{moveTo(sx,sy);lineTo(sx+cw*.92f,sy-cw*.24f);lineTo(sx+cw*1.13f,sy+cw*.50f);lineTo(sx+cw*.10f,sy+cw*.67f);close()}
@@ -105,18 +106,18 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             }
             // Keep every finger intact. The artwork's waist baseline meets the felt;
             // the back rail disappears behind the torso and the shoe remains under the hand.
-            sprite()
+            if(phase in .18f.. .55f) clipRect(left=shoe.x-cw*.55f,top=shoe.y-cw*.38f,right=shoe.x+cw*.55f,bottom=shoe.y-cw*.05f){sprite()}
             drawLine(room.accent.copy(alpha=.5f),Offset(0f,height-1.dp.toPx()),Offset(width,height-1.dp.toPx()),2.dp.toPx())
         }
         Box(Modifier.offset {IntOffset((shoe.x-cw*.60f).roundToInt(),(shoe.y-cw*.60f).roundToInt())}
             .size(with(density){(cw*1.4f).toDp()},with(density){(cw*1.25f).toDp()})
             .testTag("visible-shoe").semantics{contentDescription="Physical six-deck shoe on table, ${game.deckRemaining} cards"})
         Text(if(game.shuffling)"SHUFFLING…" else "SHOE ${game.deckRemaining}",color=room.accent,fontSize=10.sp,
-            modifier=Modifier.align(Alignment.BottomStart).padding(start=10.dp,bottom=3.dp))
+            modifier=Modifier.offset { IntOffset((shoe.x-cw*.55f).roundToInt(),(shoe.y+cw*.39f).roundToInt()) })
     }
 }
 
-private fun DrawScope.drawDealerPose(atlas:ImageBitmap,room:RoomStyle,frame:Int,left:Float,side:Float){
+internal fun DrawScope.drawDealerPose(atlas:ImageBitmap,room:RoomStyle,frame:Int,left:Float,side:Float){
     val rows=when(room){RoomStyle.CARNIVAL->intArrayOf(0,356,702,1086);RoomStyle.PUNK->intArrayOf(0,362,716,1086);RoomStyle.IRON->intArrayOf(0,358,712,1086);RoomStyle.EGYPT->intArrayOf(0,366,728,1086);RoomStyle.GREEN->intArrayOf(0,362,724,1086);else->intArrayOf(0,364,723,1086)}
     val row=frame/4;val sy=(rows[row]*atlas.height/1086f).roundToInt();val ey=(rows[row+1]*atlas.height/1086f).roundToInt();val w=atlas.width/4
     drawImage(atlas,srcOffset=IntOffset((frame%4)*w,sy),srcSize=IntSize(w,ey-sy),dstOffset=IntOffset(left.roundToInt(),0),dstSize=IntSize(side.roundToInt(),side.roundToInt()),filterQuality=FilterQuality.Medium)

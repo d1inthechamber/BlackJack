@@ -18,10 +18,10 @@ internal fun DealerVoice(game:BlackjackState,flights:CardFlights,enabled:Boolean
     var lastReacted by remember(game){mutableIntStateOf(if(game.finished)game.roundNumber else -1)}
     DisposableEffect(pool){pool.setOnLoadCompleteListener{_,_,status->if(status==0)loaded++};listOf(R.raw.dealer_grunt,R.raw.dealer_groan,R.raw.dealer_laugh).forEach{sounds[it]=pool.load(context,it,1)};onDispose{pool.release()}}
     LaunchedEffect(enabled){if(!enabled&&stream!=0)pool.stop(stream)}
-    LaunchedEffect(game.finished,game.roundNumber,flights.busy,enabled,loaded){
-        if(game.finished&&!flights.busy&&game.roundNumber!=lastReacted){
+    LaunchedEffect(game.finished,game.roundNumber,flights.pending,enabled,loaded){
+        if(game.finished&&!flights.pending&&game.roundNumber!=lastReacted){
             delay(100)
-            if(flights.busy)return@LaunchedEffect
+            if(flights.pending)return@LaunchedEffect
             if(!enabled){lastReacted=game.roundNumber;return@LaunchedEffect}
             if(loaded<3)return@LaunchedEffect
             lastReacted=game.roundNumber

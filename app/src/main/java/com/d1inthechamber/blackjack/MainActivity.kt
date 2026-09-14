@@ -409,7 +409,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                         GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,
                             cardWidth, cardHeight, Modifier.fillMaxWidth())
                         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-                            CasinoBadge(game.message)
+                            CasinoBadge(if(flights.pending) "Dealing…" else game.message)
                             game.hands.forEachIndexed { index, hand ->
                                 PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
                                     revealHand = index == game.activeHand && !game.dealing && !flights.busy)
@@ -423,7 +423,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                     BettingPanel(game, wide, compact)
                 }
                 CardFlightsOverlay(flights)
-                if (!flights.busy) TableEventOverlay(game)
+                if (!flights.pending) TableEventOverlay(game)
             }
         }
     }
@@ -527,7 +527,7 @@ fun GamePanel(title: String, cards: List<Card>, hideSecond: Boolean, cardWidth: 
     Surface(modifier = modifier.animateContentSize(), shape = RoundedCornerShape(20.dp), color = Color(0xFF030A07).copy(alpha = .48f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .2f))) {
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             CardsRow(cards, hideSecond, cardWidth, cardHeight)
-            if (cards.isNotEmpty()) Text(if (hideSecond) "HOLE CARD" else "TOTAL ${score(cards)}", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(top = 5.dp))
+            if (cards.isNotEmpty()) Text(if (hideSecond) "HOLE CARD" else "TOTAL ${score(LocalCardFlights.current?.visible(cards) ?: cards)}", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(top = 5.dp))
         }
     }
 }
@@ -549,7 +549,7 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
         Column(Modifier.padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("PLAYER ${index + 1}", color = if (active) Gold else Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 12.sp)
-                Spacer(Modifier.width(10.dp)); Text("${score(hand.cards)}  •  ${hand.wager} CHIPS", color = Color.White.copy(alpha = .68f), fontSize = 11.sp)
+                Spacer(Modifier.width(10.dp)); Text("${score(LocalCardFlights.current?.visible(hand.cards) ?: hand.cards)}  •  ${hand.wager} CHIPS", color = Color.White.copy(alpha = .68f), fontSize = 11.sp)
             }
             Spacer(Modifier.height(5.dp)); CardsRow(hand.cards, false, cardWidth, cardHeight)
         }
