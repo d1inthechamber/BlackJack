@@ -1,6 +1,6 @@
 # Casino Chaos 3.0
 
-Expands Royal Felt / BlackJack into a four-game, six-room offline casino. Package ID and development signing key remain unchanged for sideload updates. This is a development APK, not a Play Store production release.
+Expands Royal Felt / BlackJack into a four-game, seven-room offline casino. Package ID and development signing key remain unchanged for sideload updates. This is a development APK, not a Play Store production release.
 
 - Blackjack retains its rules, dealer sprites, sounds, flights, and legacy save migration.
 - Slots: one payline, independent 20-stop reels, weights 6/5/4/3/2, triple payouts 5/8/15/30/60 times stake. Exactly two lowest symbols pay 2 times stake. Exhaustive theoretical return 91.925%. Outcomes are saved with the wallet before cosmetic reel animation, so closing cannot replay a wager.
@@ -18,3 +18,11 @@ https://www.pokerstars.fr/en/help/articles/poker-rules-master/
 https://bicyclecards.com/how-to-play/klondike
 
 Validation: fixed-odds exhaustive payout test, card conservation, solitaire move/undo/recycle checks, hand ranking, layered pots/odd chips, short all-in reopening, bot information boundary, simulated hand chip conservation, full save serialization; emulator tests cover navigation, wagering, cash-out, recreation and screenshots alongside existing blackjack regression tests.
+
+## Green Room and table staging update
+
+Added The Green Room with reference-based masked, bucket-hat champion dealer, twelve poses, cannabis-themed background and card backs, its own original instrumental loop, slot symbols and poker cast. Added independent persistent music/effects/voices/ambience controls on a separate settings screen accessible from the fixed top-right button on every game screen.
+
+Dealer is occluded by a physical felt table and rail, with forearms layered over the surface; larger angled shoe remains visible beside the dealing hand. Removed whole-body idle wink jumps and unnecessary reverse contact pose; slowed laugh cadence. Short procedurally synthesized cartoon grunt/groan/laugh effects react once to new completed hands, stop when voices are muted, and vary pitch by room. Source generator: art/casino-chaos/make_audio.py.
+
+Generated Green Room art used the built-in image tool: reference-based 4x3 cel-animated dealer atlas (no text, cards or grid); empty smoky 1970s green/amber lounge; antique gold cannabis-leaf card back. Packaging only resized these images.

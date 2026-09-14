@@ -13,7 +13,7 @@ class CasinoSmokeTest {
     private fun shot(name:String){
         rule.waitForIdle()
         val a=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
-        a.rootInActiveWindow?.let{if(it.findAccessibilityNodeInfosByText("Quickstep isn't responding").isNotEmpty()){it.findAccessibilityNodeInfosByText("Close app").firstOrNull()?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);Thread.sleep(500)}}
+        clearLauncherDialog()
         assertTrue(a.rootInActiveWindow?.findAccessibilityNodeInfosByText("isn't responding")?.isEmpty()!=false)
         val b=a.takeScreenshot();val file=java.io.File(rule.activity.getExternalFilesDir(null),"chaos-$name.png")
         file.outputStream().use{b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};b.recycle()
@@ -48,4 +48,27 @@ class CasinoSmokeTest {
         rule.runOnIdle{assertTrue(m.casino.poker.active);assertEquals(0,m.casino.poker.actor)}
         rule.activityRule.scenario.recreate();rule.onNodeWithText("NO-LIMIT TEXAS HOLD’EM • 5 / 10").assertExists()
     }
+    @Test fun settingsStayAccessibleAndVoiceFilesPlay(){
+        reset()
+        rule.onNodeWithTag("settings-button").assertIsDisplayed().performClick()
+        rule.onNodeWithContentDescription("DEALER VOICES").assertExists()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread{m.settings.set("voices",false)}
+        rule.activityRule.scenario.recreate()
+        rule.onNodeWithContentDescription("DEALER VOICES").assertIsOff()
+        rule.onNodeWithText("The Green Room",substring=true).performScrollTo().performClick()
+        rule.onNodeWithTag("settings-button").assertIsDisplayed()
+        rule.onNodeWithText("BACK").performScrollTo().performClick()
+        for(game in listOf("SLOTS","SOLITAIRE","POKER")){
+            rule.onNodeWithText(game).performScrollTo().performClick()
+            rule.onNodeWithTag("settings-button").assertIsDisplayed().performClick()
+            rule.onNodeWithText("BACK").performClick()
+            rule.onNodeWithText("LOBBY").performScrollTo().performClick()
+        }
+        listOf(R.raw.dealer_grunt,R.raw.dealer_groan,R.raw.dealer_laugh).forEach{id->
+            val p=android.media.MediaPlayer.create(rule.activity,id);assertNotNull(p);assertTrue(p.duration>200);p.release()
+        }
+        rule.runOnUiThread{m.settings.set("voices",true);m.selectRoom(RoomStyle.VEGAS)}
+    }
+
 }

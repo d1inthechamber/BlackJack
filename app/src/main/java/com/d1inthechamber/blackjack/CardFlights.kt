@@ -43,8 +43,8 @@ internal class CardFlights(game:BlackjackState) {
     var spriteLocal=Rect.Zero
     fun localHand(p:Float):Offset {
         val r=spriteLocal
-        val shoe=Offset(r.left+r.width*.24f,r.top+r.height*.94f)
-        val middle=Offset(r.left+r.width*.46f,r.top+r.height*.96f)
+        val shoe=Offset(r.left+r.width*.28f,r.top+r.height*.94f)
+        val middle=Offset(r.left+r.width*.33f,r.top+r.height*.94f)
         val release=Offset(r.left+r.width*(if(pushRight).84f else .16f),r.top+r.height*.98f)
         return when {p<.38f->shoe;p<.55f->shoe+(middle-shoe)*((p-.38f)/.17f);else->middle+(release-middle)*((p-.55f)/.13f).coerceIn(0f,1f)}
     }

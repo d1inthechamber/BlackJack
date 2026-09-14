@@ -299,6 +299,7 @@ class BlackjackState(internal val deck: CardShoe = Deck()) {
 }
 
 class BlackjackViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
+    internal val settings = CasinoSettings(application)
     private val roomPreferences = RoomPreferences(application)
     var room by mutableStateOf(roomPreferences.load())
         private set
@@ -334,14 +335,12 @@ class MainActivity : ComponentActivity() {
 fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> Unit = {}) {
     var showLastHand by remember { mutableStateOf(false) }
     if (showLastHand) game.lastRound?.let { LastHandDialog(it) { showLastHand = false } }
-    var soundEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
-    var ambienceEnabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    val settings=LocalCasinoSettings.current
+    val ambienceEnabled=settings.ambience
     val flights = remember(game, game.roundNumber) { CardFlights(game) }
-    val audioContext=androidx.compose.ui.platform.LocalContext.current
-    val musicPrefs=remember { audioContext.getSharedPreferences("audio",android.content.Context.MODE_PRIVATE) }
-    var musicEnabled by remember { mutableStateOf(musicPrefs.getBoolean("music",true)) }
-    RoomMusic(LocalRoomStyle.current,musicEnabled)
-    TableSounds(game, soundEnabled, flights.releasePulse)
+    RoomMusic(LocalRoomStyle.current,settings.music)
+    TableSounds(game, settings.effects, flights.releasePulse)
+    DealerVoice(game,flights,settings.voices)
 
     LaunchedEffect(game, game.shuffling) {
         if (game.shuffling) { delay(1800); game.finishShuffle() }
@@ -386,22 +385,14 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                         .widthIn(max = 1080.dp).align(Alignment.TopCenter),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (!compact) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        TextButton(enabled = game.lastRound != null, onClick = { showLastHand = true }) { Text("LAST HAND") }
-                        TextButton(onClick = { soundEnabled = !soundEnabled }) { Text(if (soundEnabled) "SOUND ON" else "SOUND OFF") }
-                        TextButton(onClick = { ambienceEnabled = !ambienceEnabled }) { Text(if (ambienceEnabled) "AMBIENCE ON" else "AMBIENCE OFF") }
-                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = onMenu) { Text("MENU") }
                         Text("${formatChips(game.bankroll)} CHIPS", color = Gold, fontWeight = FontWeight.Bold)
-                        Column(horizontalAlignment=Alignment.End) {
-                            Text("SHOE ${game.deckRemaining}", color = Gold, fontSize = 11.sp)
-                            TextButton(onClick={musicEnabled=!musicEnabled;musicPrefs.edit().putBoolean("music",musicEnabled).apply()},contentPadding=PaddingValues(0.dp),modifier=Modifier.height(32.dp)) { Text(if(musicEnabled) "MUSIC ON" else "MUSIC OFF",fontSize=11.sp) }
-                        }
+                        TextButton(enabled = game.lastRound != null, onClick = { showLastHand = true }) { Text("LAST HAND",fontSize=11.sp) }
                     }
                     // Dealer has a fixed centered slot, outside the hand scroller on every screen width.
                     DealerStage(game,ambienceEnabled,flights,Modifier.fillMaxWidth()
-                        .height(if(compact) 80.dp else if(wide) 220.dp else if(tall) 210.dp else 165.dp))
+                        .height(if(compact) 124.dp else if(wide) 265.dp else if(tall) 255.dp else 215.dp))
                     if (compact) {
                         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,

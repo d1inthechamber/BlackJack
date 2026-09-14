@@ -11,7 +11,8 @@ enum class RoomStyle(val id:String,val title:String,val host:String,val backgrou
     EGYPT("egypt","Pharaoh’s Palace","Tutankhamun",R.drawable.room_egypt,R.drawable.dealer_egypt,R.drawable.back_egypt,Color(0xFFF0CD75),Color(0xFFD0AF52),Color(0xFFFFF6DB)),
     IRON("iron","Ironworks","Ebenezer Scrooge",R.drawable.room_iron,R.drawable.dealer_iron,R.drawable.back_iron,Color(0xFFDEAB81),Color(0xFFC39367),Color(0xFFF4EADB)),
     WEST("west","West Coast ’94","Eazy-E",R.drawable.room_west,R.drawable.dealer_west,R.drawable.back_west,Color(0xFFB5D6CD),Color(0xFF86B8AC),Color(0xFFF1F7F5)),
-    PUNK("punk","The Backroom","The punk rocker",R.drawable.room_punk,R.drawable.poses_punk,R.drawable.back_punk,Color(0xFF6EDBE6),Color(0xFF48BDCE),Color(0xFFF6F1E8));
+    PUNK("punk","The Backroom","The punk rocker",R.drawable.room_punk,R.drawable.poses_punk,R.drawable.back_punk,Color(0xFF6EDBE6),Color(0xFF48BDCE),Color(0xFFF6F1E8)),
+    GREEN("green","The Green Room","The green champion",R.drawable.room_green,R.drawable.poses_green,R.drawable.back_green,Color(0xFFD3C58C),Color(0xFF83A466),Color(0xFFF5F1DF));
     companion object { fun fromId(id:String?)=entries.firstOrNull { it.id==id } ?: VEGAS }
 }
 val LocalRoomStyle=staticCompositionLocalOf { RoomStyle.VEGAS }

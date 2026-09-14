@@ -13,8 +13,9 @@ class TableSmokeTest {
         rule.onNodeWithText("START NEW GAME").performScrollTo().performClick()
         if(rule.onAllNodesWithText("START FRESH").fetchSemanticsNodes().isNotEmpty()) rule.onNodeWithText("START FRESH").performClick()
         rule.onNodeWithText("MENU").assertIsDisplayed()
-        rule.onNodeWithText("SOUND ON").performClick()
-        rule.onNodeWithText("SOUND OFF").assertExists()
+        rule.onNodeWithTag("settings-button").performClick()
+        rule.onNodeWithContentDescription("CARD & CHIP SOUNDS").performClick()
+        rule.onNodeWithText("BACK").performClick()
         rule.activityRule.scenario.recreate()
         rule.onNodeWithText("MENU").assertIsDisplayed()
     }
@@ -49,8 +50,9 @@ class TableSmokeTest {
         val bounds=rule.onNodeWithTag("cartoon-dealer").fetchSemanticsNode().boundsInRoot
         val root=rule.onRoot().fetchSemanticsNode().boundsInRoot
         org.junit.Assert.assertTrue(kotlin.math.abs(bounds.center.x-root.center.x)<root.width*.08)
-        rule.onNodeWithText("AMBIENCE ON").performClick()
-        rule.onNodeWithText("AMBIENCE OFF").assertExists()
+        rule.onNodeWithTag("settings-button").performClick()
+        rule.onNodeWithContentDescription("AMBIENCE ANIMATION").performClick()
+        rule.onNodeWithText("BACK").performClick()
         rule.onNodeWithTag("visible-shoe").assertIsDisplayed()
     }
     private fun screenshot(name: String) {
@@ -62,14 +64,7 @@ class TableSmokeTest {
         rule.mainClock.advanceTimeBy(1000)
         rule.waitForIdle()
         val automation=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
-        val activeWindow=automation.rootInActiveWindow
-        // Some API 35 emulator boots leave a launcher ANR over an otherwise healthy app.
-        // Dismiss only Quickstep's dialog. Never dismiss a Royal Felt/game ANR.
-        if(activeWindow?.findAccessibilityNodeInfosByText("Quickstep isn't responding")?.isNotEmpty()==true) {
-            activeWindow.findAccessibilityNodeInfosByText("Close app").firstOrNull()
-                ?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
-            Thread.sleep(500)
-        }
+        clearLauncherDialog()
         val remaining=automation.rootInActiveWindow
         org.junit.Assert.assertTrue("An ANR must not cover the game screenshot",
             remaining?.findAccessibilityNodeInfosByText("isn't responding")?.isEmpty()!=false)
@@ -153,7 +148,7 @@ class TableSmokeTest {
         rule.runOnUiThread { model.startNew();model.game.addBet(25) }
         val before=model.game.savedGame()
         for(room in RoomStyle.entries.filter { it!=RoomStyle.VEGAS }) {
-            rule.onNodeWithText("CHOOSE ROOM").performScrollTo().performClick()
+            rule.onNodeWithTag("settings-button").performClick()
             rule.onNodeWithText(room.title,substring=true).performScrollTo().performClick()
             rule.runOnIdle {
                 org.junit.Assert.assertEquals(room,model.room)
@@ -165,6 +160,7 @@ class TableSmokeTest {
                     bitmap?.recycle()
                 }
             }
+            rule.onNodeWithText("BACK").performScrollTo().performClick()
             rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
             rule.onNodeWithText("AVAILABLE 1000 CHIPS").assertIsDisplayed()
             screenshot("room-${room.id}")
@@ -172,17 +168,18 @@ class TableSmokeTest {
         }
         rule.activityRule.scenario.recreate()
         val restored=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
-        rule.runOnIdle { org.junit.Assert.assertEquals(RoomStyle.PUNK,restored.room) }
+        rule.runOnIdle { org.junit.Assert.assertEquals(RoomStyle.GREEN,restored.room) }
         rule.runOnUiThread { restored.selectRoom(RoomStyle.VEGAS) }
     }
     @Test fun musicChoicePersistsAndEveryTrackIsPlayable() {
         val model=androidx.lifecycle.ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnUiThread { model.startNew() }
         rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
-        if(rule.onAllNodesWithText("MUSIC ON").fetchSemanticsNodes().isNotEmpty())rule.onNodeWithText("MUSIC ON").performClick()
-        rule.onNodeWithText("MUSIC OFF").assertIsDisplayed()
+        rule.onNodeWithTag("settings-button").performClick()
+        if(model.settings.music)rule.onNodeWithContentDescription("BACKGROUND MUSIC").performClick()
+        rule.onNodeWithContentDescription("BACKGROUND MUSIC").assertIsOff()
         rule.activityRule.scenario.recreate()
-        rule.onNodeWithText("MUSIC OFF").assertIsDisplayed()
+        rule.onNodeWithContentDescription("BACKGROUND MUSIC").assertIsOff()
         RoomStyle.entries.forEach { room ->
             val player=android.media.MediaPlayer.create(rule.activity,roomMusicResource(room))
             org.junit.Assert.assertNotNull(player)

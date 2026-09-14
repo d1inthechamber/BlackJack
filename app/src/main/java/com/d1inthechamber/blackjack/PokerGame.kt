@@ -93,7 +93,7 @@ internal class PokerGame(val rng:Random=Random()):Serializable {
     val seated get()=seats.isNotEmpty()
     fun sit(amount:Int,room:Int){
         require(!seated && amount>=100)
-        val casts=listOf(listOf("Knuckles","Pearl","Vince"),listOf("Rattle","Velvet","Grin"),listOf("Khepri","Nefra","Seth"),listOf("Rivet","Copper","Baron"),listOf("Tone","Diamond","Ace"),listOf("Riot","Static","Patch"))
+        val casts=listOf(listOf("Knuckles","Pearl","Vince"),listOf("Rattle","Velvet","Grin"),listOf("Khepri","Nefra","Seth"),listOf("Rivet","Copper","Baron"),listOf("Tone","Diamond","Ace"),listOf("Riot","Static","Patch"),listOf("Haze","Clover","Resin"))
         val profiles=listOf(PokerPersonality.BULLY,PokerPersonality.ROCK,PokerPersonality.SHOWBOAT,PokerPersonality.GAMBLER,PokerPersonality.VETERAN)
         seats=mutableListOf(PokerSeat("You",PokerPersonality.VETERAN,amount))
         repeat(3){seats.add(PokerSeat(casts[room][it],profiles[(room+it)%5],500))}

@@ -35,16 +35,19 @@ fun GameRoot(model:BlackjackViewModel) {
     val revision=model.revision
     var screen by rememberSaveable { mutableStateOf("LOBBY") }
     var confirmNew by remember {mutableStateOf(false)}
+    var beforeSettings by rememberSaveable {mutableStateOf("LOBBY")}
     var foreground by remember {mutableStateOf(true)}
     val owner=LocalLifecycleOwner.current
     DisposableEffect(owner){val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_STOP)foreground=false else if(event==Lifecycle.Event.ON_START)foreground=true};owner.lifecycle.addObserver(observer);onDispose{owner.lifecycle.removeObserver(observer)}}
-    CompositionLocalProvider(LocalRoomStyle provides model.room) {
+    CompositionLocalProvider(LocalRoomStyle provides model.room, LocalCasinoSettings provides model.settings) {
         MaterialTheme(colorScheme=darkColorScheme(primary=model.room.accent,secondary=model.room.button)) {
             val lobby={model.save();screen="LOBBY"}
             val enter:(String)->Unit={model.enter(it);screen=it}
-            BackHandler(screen!="LOBBY"){lobby()}
+            BackHandler(screen!="LOBBY"){if(screen=="SETTINGS")screen=beforeSettings else lobby()}
+            Box(Modifier.fillMaxSize().background(Color(0xFF100D14))) {
+            Box(Modifier.fillMaxSize().padding(top=48.dp)) {
             if(!foreground)Box(Modifier.fillMaxSize().background(Color.Black)) else when(screen){
-                "ROOMS"->RoomPicker(model.room,{model.selectRoom(it);screen="LOBBY"},{screen="LOBBY"})
+                "SETTINGS"->SettingsPage(model){screen=beforeSettings}
                 "BLACKJACK"->BlackjackApp(model.game,lobby,{model.refill()})
                 "SLOTS"->SlotsScreen(model,lobby)
                 "SOLITAIRE"->SolitaireScreen(model,lobby)
@@ -53,7 +56,6 @@ fun GameRoot(model:BlackjackViewModel) {
                     Text("CASINO CHAOS",fontSize=32.sp,fontWeight=FontWeight.Black,color=model.room.accent,letterSpacing=2.sp,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth().testTag("casino-title"))
                     Text("A little luck. A lot of bad company.",color=Color.LightGray,fontSize=13.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick={screen="ROOMS"},modifier=Modifier.fillMaxWidth()){Text("CHOOSE ROOM")}
                     Button(enabled=model.hasSaved,onClick={enter(model.casino.lastGame)},modifier=Modifier.fillMaxWidth()){Text("CONTINUE")}
                     val locked=model.game.inRound||model.game.shuffling
                     if(locked)Text("Your blackjack hand is waiting. Finish it before entering another game.",color=model.room.accent)
@@ -68,6 +70,10 @@ fun GameRoot(model:BlackjackViewModel) {
                     Text("Virtual chips only • Free refills • No purchases",color=Color.LightGray,fontSize=12.sp)
                 }
             }
+            }
+            RoomBorder(model.room,Modifier.safeDrawingPadding())
+            OutlinedButton(onClick={if(screen!="SETTINGS"){beforeSettings=screen;model.save();screen="SETTINGS"}},modifier=Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(end=12.dp).height(46.dp).testTag("settings-button"),colors=ButtonDefaults.outlinedButtonColors(containerColor=Color(0xF019141D))) {Text("⚙ SETTINGS",fontSize=12.sp)}
+            }
             if(confirmNew)AlertDialog(onDismissRequest={confirmNew=false},title={Text("Start a fresh casino?")},text={Text("This replaces all saved games and table chips with a new 1,000-chip bankroll.")},confirmButton={TextButton(onClick={model.startNew();confirmNew=false;enter("BLACKJACK")}){Text("START FRESH")}},dismissButton={TextButton(onClick={confirmNew=false}){Text("CANCEL")}})
         }
     }
@@ -75,18 +81,15 @@ fun GameRoot(model:BlackjackViewModel) {
 
 @Composable
 internal fun CasinoFrame(model:BlackjackViewModel,title:String,onBack:(()->Unit)?,content:@Composable ColumnScope.()->Unit){
-    val context=LocalContext.current
-    val prefs=remember{context.getSharedPreferences("audio",android.content.Context.MODE_PRIVATE)}
-    var music by remember{mutableStateOf(prefs.getBoolean("music",true))}
-    RoomMusic(model.room,music)
+    RoomMusic(model.room,model.settings.music)
     Box(Modifier.fillMaxSize()){
         Image(painterResource(model.room.background),null,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.65f)))
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=16.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                if(onBack!=null)TextButton(onClick=onBack){Text("LOBBY")}
+                if(onBack!=null)TextButton(onClick=onBack){Text(if(title=="SETTINGS")"BACK" else "LOBBY")}
                 Text("${formatChips(model.game.bankroll)} CHIPS",Modifier.weight(1f),fontSize=15.sp,color=model.room.accent,fontWeight=FontWeight.Bold)
-                TextButton(onClick={music=!music;prefs.edit().putBoolean("music",music).apply()}){Text(if(music)"MUSIC ON" else "MUSIC OFF",fontSize=11.sp)}
+
             }
             Text(model.room.title.uppercase(),color=model.room.accent,fontSize=11.sp,letterSpacing=3.sp)
             if(onBack!=null)Text(title,color=Color.White,fontSize=27.sp,fontWeight=FontWeight.Black)
@@ -103,6 +106,7 @@ internal fun slotSymbols(room:RoomStyle):List<String> = when(room){
     RoomStyle.IRON->listOf("BOLT","GEAR","COAL","STEAM","GOLD")
     RoomStyle.WEST->listOf("TAPE","VINYL","BOOMBOX","PALM","CROWN")
     RoomStyle.PUNK->listOf("PIN","BOOT","PICK","SKULL","RIOT")
+    RoomStyle.GREEN->listOf("LEAF","AMBER","MOON","BLOOM","CHAMP")
 }
 @Composable
 internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
@@ -140,7 +144,7 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
 @Composable
 private fun SlotGlyph(n:Int,room:RoomStyle,modifier:Modifier){
     // Bold room-specific emblems with a shared hand-inked cabinet treatment.
-    val marks=when(room){RoomStyle.VEGAS->listOf("●","▰","♧","★","7");RoomStyle.CARNIVAL->listOf("▥","☾","◈","☠","♠");RoomStyle.EGYPT->listOf("☥","◆","◉","ϟ","♛");RoomStyle.IRON->listOf("ϟ","⚙","◆","≋","▰");RoomStyle.WEST->listOf("▣","◉","▤","♠","♛");RoomStyle.PUNK->listOf("ϟ","▟","▼","☠","★")}
+    val marks=when(room){RoomStyle.VEGAS->listOf("●","▰","♧","★","7");RoomStyle.CARNIVAL->listOf("▥","☾","◈","☠","♠");RoomStyle.EGYPT->listOf("☥","◆","◉","ϟ","♛");RoomStyle.IRON->listOf("ϟ","⚙","◆","≋","▰");RoomStyle.WEST->listOf("▣","◉","▤","♠","♛");RoomStyle.PUNK->listOf("ϟ","▟","▼","☠","★");RoomStyle.GREEN->listOf("♣","◆","☾","❋","♛")}
     Box(modifier,contentAlignment=Alignment.Center){Text(marks[n],fontSize=45.sp,fontWeight=FontWeight.Black,color=if(n==4)Color(0xFFC72C43) else Color(0xFF29202F))}
 }
 

@@ -12,7 +12,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 internal fun roomMusicResource(room:RoomStyle)=when(room) {
     RoomStyle.VEGAS->R.raw.music_vegas;RoomStyle.CARNIVAL->R.raw.music_carnival
     RoomStyle.EGYPT->R.raw.music_egypt;RoomStyle.IRON->R.raw.music_iron
-    RoomStyle.WEST->R.raw.music_west;RoomStyle.PUNK->R.raw.music_punk
+    RoomStyle.WEST->R.raw.music_west;RoomStyle.PUNK->R.raw.music_punk;RoomStyle.GREEN->R.raw.music_green
 }
 @Composable
 internal fun RoomMusic(room:RoomStyle,enabled:Boolean) {

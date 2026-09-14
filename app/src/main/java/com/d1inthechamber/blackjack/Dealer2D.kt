@@ -11,6 +11,11 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -25,11 +30,11 @@ import kotlin.math.*
 
 internal enum class DealerMood { IDLE, ANGRY, SMUG, LAUGH }
 internal fun dealerMood(net:Double?)=when { net==null->DealerMood.IDLE;net>0->DealerMood.ANGRY;net<0->DealerMood.LAUGH;else->DealerMood.SMUG }
-internal fun dealingPose(p:Float,right:Boolean)=when {p<0f->0;p<.18f->1;p<.38f->2;p<.55f->3;p<.73f->if(right)5 else 4;p<.84f->3;else->0}
+internal fun dealingPose(p:Float,right:Boolean)=when {p<0f->0;p<.18f->1;p<.38f->2;p<.55f->3;p<.73f->if(right)5 else 4;else->0}
 internal fun dealerSheet(room:RoomStyle)=when(room) {
     RoomStyle.VEGAS->R.drawable.poses_vegas;RoomStyle.CARNIVAL->R.drawable.poses_carnival
     RoomStyle.EGYPT->R.drawable.poses_egypt;RoomStyle.IRON->R.drawable.poses_iron
-    RoomStyle.WEST->R.drawable.poses_west;RoomStyle.PUNK->R.drawable.poses_punk
+    RoomStyle.WEST->R.drawable.poses_west;RoomStyle.PUNK->R.drawable.poses_punk;RoomStyle.GREEN->R.drawable.poses_green
 }
 // Decode/key once off the UI thread. No SurfaceView, GL context, or permanent frame loop.
 internal fun decodeDealer(context:android.content.Context,room:RoomStyle):ImageBitmap {
@@ -55,39 +60,63 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
     LaunchedEffect(mood,animated,game.roundNumber,flights.busy) {
         reactionFrame=0
         if(animated&&!flights.busy) when(mood) {
-            DealerMood.IDLE->while(true){delay(6000);reactionFrame=9;delay(180);reactionFrame=0}
+            DealerMood.IDLE->reactionFrame=0
             DealerMood.ANGRY->{reactionFrame=6;delay(260);reactionFrame=7;delay(300);reactionFrame=6}
-            DealerMood.SMUG->{reactionFrame=8;delay(900);reactionFrame=9;delay(180);reactionFrame=8}
-            DealerMood.LAUGH->{repeat(12){reactionFrame=if(it%2==0)10 else 11;delay(150)};reactionFrame=8}
+            DealerMood.SMUG->reactionFrame=8
+            DealerMood.LAUGH->{repeat(6){reactionFrame=if(it%2==0)10 else 11;delay(240)};reactionFrame=8}
         }
     }
     val phase=flights.gestureProgress
     val frame=if(phase>=0f)dealingPose(phase,flights.pushRight) else if(game.shuffling&&animated)2 else reactionFrame
     val state=if(phase>=0f)"Dealing" else mood.name.lowercase().replaceFirstChar { it.uppercase() }
-    Box(modifier.testTag("cartoon-dealer").semantics { stateDescription=state;contentDescription="${room.host}, animated cartoon dealer" }
+    BoxWithConstraints(modifier.testTag("cartoon-dealer").semantics { stateDescription=state;contentDescription="${room.host}, seated cartoon dealer" }
         .onGloballyPositioned { flights.dealerBounds=it.boundsInRoot() }) {
-        Canvas(Modifier.fillMaxSize().testTag("visible-shoe").semantics { contentDescription="Visible six-deck shoe, ${game.deckRemaining} cards" }) {
-            val side=min(size.height-24.dp.toPx(),size.width*.72f).coerceAtLeast(1f)
-            val left=(size.width-side)/2;val top=0f
-            flights.spriteLocal=Rect(left,top,left+side,top+side)
-            val shoe=Offset(left+side*.24f,top+side*.94f);val cw=side*.19f;val ch=cw*1.35f
-            drawRoundRect(Color(0xFF241911),shoe-Offset(cw*.72f,ch*.36f),Size(cw*1.44f,ch*.96f),androidx.compose.ui.geometry.CornerRadius(5.dp.toPx()),style=androidx.compose.ui.graphics.drawscope.Fill)
-            repeat(6){i->drawRoundRect(Color(0xFFE1D9C6),shoe-Offset(cw/2,ch*.25f)+Offset(i*.6f,i*2f),Size(cw,ch*.5f),androidx.compose.ui.geometry.CornerRadius(2f),style=Stroke(1.3f))}
-            if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((shoe.x-cw/2).roundToInt(),(shoe.y-ch*.25f).roundToInt()),dstSize=IntSize(cw.roundToInt(),(ch*.5f).roundToInt()))
-            else drawRect(Color(0xFF183563),shoe-Offset(cw/2,ch*.25f),Size(cw,ch*.5f))
-            if(phase in .30f.. .68f) {
-                val hand=flights.localHand(phase);val cardSize=Size(cw,ch*.52f)
-                if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((hand.x-cw/2).roundToInt(),(hand.y-cardSize.height/2).roundToInt()),dstSize=IntSize(cw.roundToInt(),cardSize.height.roundToInt()))
-                else drawRect(Color(0xFF183563),hand-Offset(cw/2,cardSize.height/2),cardSize)
+        val density=LocalDensity.current
+        val width=with(density){maxWidth.toPx()};val height=with(density){maxHeight.toPx()}
+        val side=min(height-with(density){32.dp.toPx()},width*.76f).coerceAtLeast(1f)
+        val left=(width-side)/2f
+        val cw=max(side*.27f,with(density){44.dp.toPx()})
+        val shoe=Offset(left+side*.28f,side*.94f)
+        SideEffect{flights.spriteLocal=Rect(left,0f,left+side,side)}
+        Canvas(Modifier.fillMaxSize()) {
+            // Chair and torso go behind the table; hands are layered back over the felt.
+            drawRoundRect(Color(0xFF21151A),Offset(left+side*.17f,side*.32f),Size(side*.66f,side*.70f),androidx.compose.ui.geometry.CornerRadius(side*.18f),style=androidx.compose.ui.graphics.drawscope.Fill)
+            drawRoundRect(room.accent.copy(alpha=.35f),Offset(left+side*.17f,side*.32f),Size(side*.66f,side*.70f),androidx.compose.ui.geometry.CornerRadius(side*.18f),style=Stroke(2.dp.toPx()))
+            fun sprite(){sheet?.let{drawDealerPose(it,room,frame,left,side)}}
+            sprite()
+            val tableY=side*.84f
+            val tablePath=Path().apply{moveTo(0f,tableY+16.dp.toPx());quadraticBezierTo(width*.5f,tableY-13.dp.toPx(),width,tableY+16.dp.toPx());lineTo(width,height);lineTo(0f,height);close()}
+            drawPath(tablePath,Brush.verticalGradient(listOf(Color(0xFF28402E),Color(0xFF0B211A)),startY=tableY,endY=height))
+            val rail=Path().apply{moveTo(0f,tableY+16.dp.toPx());quadraticBezierTo(width*.5f,tableY-13.dp.toPx(),width,tableY+16.dp.toPx())}
+            drawPath(rail,Color(0xFF37251D),style=Stroke(9.dp.toPx()))
+            drawPath(rail,room.accent.copy(alpha=.65f),style=Stroke(1.2.dp.toPx()))
+            // Angled wood-and-brass shoe with a deep card stack, separate from the live card.
+            val sx=shoe.x-cw*.55f;val sy=shoe.y-cw*.29f
+            val casing=Path().apply{moveTo(sx,sy);lineTo(sx+cw*.92f,sy-cw*.24f);lineTo(sx+cw*1.13f,sy+cw*.50f);lineTo(sx+cw*.10f,sy+cw*.67f);close()}
+            drawPath(casing,Color(0xFF4C3425));drawPath(casing,room.accent,style=Stroke(2.dp.toPx()))
+            repeat(9){i->val y=sy+cw*.29f+i*cw*.026f;drawLine(Color(0xFFEAE0CB),Offset(sx+cw*.13f,y),Offset(sx+cw*.91f,y-cw*.09f),1.dp.toPx())}
+            if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((shoe.x-cw*.42f).roundToInt(),(shoe.y-cw*.25f).roundToInt()),dstSize=IntSize((cw*.78f).roundToInt(),(cw*.40f).roundToInt()))
+            else drawRoundRect(Color(0xFF163758),Offset(shoe.x-cw*.42f,shoe.y-cw*.25f),Size(cw*.78f,cw*.40f),androidx.compose.ui.geometry.CornerRadius(3f))
+            if(phase in .38f.. .68f){
+                val hand=flights.localHand(phase)
+                if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((hand.x-cw*.39f).roundToInt(),(hand.y-cw*.20f).roundToInt()),dstSize=IntSize((cw*.78f).roundToInt(),(cw*.40f).roundToInt()))
+                else drawRect(Color(0xFF163758),hand-Offset(cw*.39f,cw*.20f),Size(cw*.78f,cw*.40f))
             }
-            sheet?.let { atlas ->
-                val rows=when(room){RoomStyle.CARNIVAL->intArrayOf(0,356,702,1086);RoomStyle.PUNK->intArrayOf(0,362,716,1086);RoomStyle.IRON->intArrayOf(0,358,712,1086);RoomStyle.EGYPT->intArrayOf(0,366,728,1086);else->intArrayOf(0,364,723,1086)}
-                val row=frame/4;val sy=(rows[row]*atlas.height/1086f).roundToInt();val ey=(rows[row+1]*atlas.height/1086f).roundToInt();val w=atlas.width/4
-                drawImage(atlas,srcOffset=IntOffset((frame%4)*w,sy),srcSize=IntSize(w,ey-sy),dstOffset=IntOffset(left.roundToInt(),top.roundToInt()),dstSize=IntSize(side.roundToInt(),side.roundToInt()),filterQuality=FilterQuality.Medium)
-            }
-            // Front edge remains readable even while the hand covers the top card.
-            drawLine(room.accent,Offset(shoe.x-cw*.7f,side+5.dp.toPx()),Offset(shoe.x+cw*.7f,side+5.dp.toPx()),3.dp.toPx())
-            repeat(3){i->drawLine(Color(0xFFE6DDC8),Offset(shoe.x-cw*.48f,side+8.dp.toPx()+i*2),Offset(shoe.x+cw*.48f,side+8.dp.toPx()+i*2),1f)}
+            // Restore only the forearms over the table, leaving the waist occluded behind it.
+            clipRect(left=left,top=tableY,right=left+side*.43f,bottom=height){sprite()}
+            clipRect(left=left+side*.61f,top=tableY,right=left+side,bottom=height){sprite()}
+            drawLine(room.accent.copy(alpha=.5f),Offset(0f,height-1.dp.toPx()),Offset(width,height-1.dp.toPx()),2.dp.toPx())
         }
+        Box(Modifier.offset {IntOffset((shoe.x-cw*.60f).roundToInt(),(shoe.y-cw*.60f).roundToInt())}
+            .size(with(density){(cw*1.4f).toDp()},with(density){(cw*1.25f).toDp()})
+            .testTag("visible-shoe").semantics{contentDescription="Physical six-deck shoe on table, ${game.deckRemaining} cards"})
+        Text(if(game.shuffling)"SHUFFLING…" else "SHOE ${game.deckRemaining}",color=room.accent,fontSize=10.sp,
+            modifier=Modifier.align(Alignment.BottomStart).padding(start=10.dp,bottom=3.dp))
     }
+}
+
+private fun DrawScope.drawDealerPose(atlas:ImageBitmap,room:RoomStyle,frame:Int,left:Float,side:Float){
+    val rows=when(room){RoomStyle.CARNIVAL->intArrayOf(0,356,702,1086);RoomStyle.PUNK->intArrayOf(0,362,716,1086);RoomStyle.IRON->intArrayOf(0,358,712,1086);RoomStyle.EGYPT->intArrayOf(0,366,728,1086);RoomStyle.GREEN->intArrayOf(0,362,724,1086);else->intArrayOf(0,364,723,1086)}
+    val row=frame/4;val sy=(rows[row]*atlas.height/1086f).roundToInt();val ey=(rows[row+1]*atlas.height/1086f).roundToInt();val w=atlas.width/4
+    drawImage(atlas,srcOffset=IntOffset((frame%4)*w,sy),srcSize=IntSize(w,ey-sy),dstOffset=IntOffset(left.roundToInt(),0),dstSize=IntSize(side.roundToInt(),side.roundToInt()),filterQuality=FilterQuality.Medium)
 }
