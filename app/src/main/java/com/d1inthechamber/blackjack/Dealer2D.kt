@@ -66,6 +66,8 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             DealerMood.LAUGH->{repeat(6){reactionFrame=if(it%2==0)10 else 11;delay(240)};reactionFrame=8}
         }
     }
+    var shuffleTime by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(game.shuffling,animated){shuffleTime=0f;if(game.shuffling&&animated)while(true){delay(40);shuffleTime+=.18f}}
     val phase=flights.gestureProgress
     val frame=if(phase>=0f)dealingPose(phase,flights.pushRight) else if(game.shuffling&&animated)2 else reactionFrame
     val state=if(phase>=0f)"Dealing" else mood.name.lowercase().replaceFirstChar { it.uppercase() }
@@ -94,7 +96,7 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             val sx=shoe.x-cw*.55f;val sy=shoe.y-cw*.29f
             val casing=Path().apply{moveTo(sx,sy);lineTo(sx+cw*.92f,sy-cw*.24f);lineTo(sx+cw*1.13f,sy+cw*.50f);lineTo(sx+cw*.10f,sy+cw*.67f);close()}
             drawPath(casing,Color(0xFF4C3425));drawPath(casing,room.accent,style=Stroke(2.dp.toPx()))
-            repeat(9){i->val y=sy+cw*.29f+i*cw*.026f;drawLine(Color(0xFFEAE0CB),Offset(sx+cw*.13f,y),Offset(sx+cw*.91f,y-cw*.09f),1.dp.toPx())}
+            repeat(9){i->val shift=if(game.shuffling&&animated)sin(shuffleTime+i*.7f)*cw*.10f else 0f;val y=sy+cw*.29f+i*cw*.026f;drawLine(Color(0xFFEAE0CB),Offset(sx+cw*.13f+shift,y),Offset(sx+cw*.91f+shift,y-cw*.09f),1.dp.toPx())}
             if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((shoe.x-cw*.42f).roundToInt(),(shoe.y-cw*.25f).roundToInt()),dstSize=IntSize((cw*.78f).roundToInt(),(cw*.40f).roundToInt()))
             else drawRoundRect(Color(0xFF163758),Offset(shoe.x-cw*.42f,shoe.y-cw*.25f),Size(cw*.78f,cw*.40f),androidx.compose.ui.geometry.CornerRadius(3f))
             if(phase in .38f.. .68f){

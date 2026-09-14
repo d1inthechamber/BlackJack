@@ -391,12 +391,13 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                         TextButton(enabled = game.lastRound != null, onClick = { showLastHand = true }) { Text("LAST HAND",fontSize=11.sp) }
                     }
                     // Dealer has a fixed centered slot, outside the hand scroller on every screen width.
-                    DealerStage(game,ambienceEnabled,flights,Modifier.fillMaxWidth()
+                    if(!compact) DealerStage(game,ambienceEnabled,flights,Modifier.fillMaxWidth()
                         .height(if(compact) 124.dp else if(wide) 265.dp else if(tall) 255.dp else 215.dp))
                     if (compact) {
                         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GamePanel("DEALER", game.dealer, game.inRound && !game.dealerPlaying && !game.finished,
                                 cardWidth, cardHeight, Modifier.weight(1f).verticalScroll(rememberScrollState()))
+                            DealerStage(game,ambienceEnabled,flights,Modifier.weight(1f).fillMaxHeight())
                             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                                 game.hands.forEachIndexed { index, hand ->
                                     PlayerHandPanel(index, hand, index == game.activeHand && game.canAct(), cardWidth, cardHeight,
