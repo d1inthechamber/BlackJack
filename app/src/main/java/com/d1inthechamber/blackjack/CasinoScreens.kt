@@ -36,6 +36,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 
@@ -177,8 +183,9 @@ private fun SlotGlyph(n:Int,room:RoomStyle,modifier:Modifier){
 @Composable
 internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
     val g=model.casino.solitaire
+    val targets=remember{mutableMapOf<Int,Rect>()}
     var selected by remember(g){mutableStateOf<SolitairePick?>(null)}
-    var note by remember{mutableStateOf("Tap a card to move it. Tap a destination to place a selected stack.")}
+    var note by remember{mutableStateOf("Tap a card to move it, or hold and drag it to a pile.")}
     var newDraw by remember{mutableStateOf<Int?>(null)}
     fun move(dest:Int){val p=selected?:return;model.change{if(g.move(p,dest)){selected=null;note="Good move.";if(g.won&&!g.rewarded){g.rewarded=true;model.game.bankroll+=100;note="Complete! +100 chips"}}else note="That card cannot move there."}}
     fun select(p:SolitairePick){
@@ -201,19 +208,19 @@ internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
         Column(Modifier.fillMaxWidth()){
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){
                 Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("STOCK",color=Color.LightGray,fontSize=10.sp);Box(Modifier.clickable{model.change{g.draw()};selected=null}){if(g.stock.isNotEmpty())CardView("?",cardWidth,cardHeight) else CardSlot("↻",cardWidth,cardHeight)}}
-                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("WASTE",color=Color.LightGray,fontSize=10.sp);val p=SolitairePick(-1,g.waste.lastIndex);Box(Modifier.border(if(selected==p)3.dp else 0.dp,model.room.accent).clickable{if(g.waste.isNotEmpty())select(p)}){g.waste.lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("—",cardWidth,cardHeight)}}
+                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("WASTE",color=Color.LightGray,fontSize=10.sp);val p=SolitairePick(-1,g.waste.lastIndex);Box(Modifier.solitaireDrag(g.waste.isNotEmpty(),p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent).clickable{if(g.waste.isNotEmpty())select(p)}){g.waste.lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("—",cardWidth,cardHeight)}}
                 Spacer(Modifier.width(cardWidth))
-                repeat(4){f->Column(horizontalAlignment=Alignment.CenterHorizontally){Text("HOME ${f+1}",color=model.room.accent,fontSize=10.sp);Box(Modifier.clickable{if(selected!=null)move(f+7)else if(g.foundations[f].isNotEmpty())selected=SolitairePick(f+7,g.foundations[f].lastIndex)}){g.foundations[f].lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("A",cardWidth,cardHeight)}}}
+                repeat(4){f->Column(Modifier.width(cardWidth).onGloballyPositioned{targets[f+7]=it.boundsInRoot()},horizontalAlignment=Alignment.CenterHorizontally){Text("HOME ${f+1}",color=model.room.accent,fontSize=10.sp);Box(Modifier.clickable{if(selected!=null)move(f+7)else if(g.foundations[f].isNotEmpty())selected=SolitairePick(f+7,g.foundations[f].lastIndex)}){g.foundations[f].lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("A",cardWidth,cardHeight)}}}
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
                 repeat(7){c->Column(Modifier.width(cardWidth)){
                     Text("${c+1}",color=model.room.accent,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
                     val count=g.columns[c].size
-                    Box(Modifier.width(cardWidth).height((maxOf(0,count-1)*30+100).dp).testTag("sol-column-$c")){
+                    Box(Modifier.width(cardWidth).height((maxOf(0,count-1)*30+100).dp).testTag("sol-column-$c").onGloballyPositioned{targets[c]=it.boundsInRoot()}){
                         if(count==0)Box(Modifier.clickable{move(c)}){CardSlot("K",cardWidth,cardHeight)}
                         g.columns[c].forEachIndexed{i,card->val p=SolitairePick(c,i)
-                            Box(Modifier.offset(y=(i*30).dp).border(if(selected==p)3.dp else 0.dp,model.room.accent,RoundedCornerShape(12.dp)).clickable{
+                            Box(Modifier.offset(y=(i*30).dp).solitaireDrag(i>=g.hidden[c],p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent,RoundedCornerShape(12.dp)).clickable{
                                 if(selected!=null&&selected!!.pile!=c)move(c)else if(i>=g.hidden[c])select(p)
                             }){CardView(if(i<g.hidden[c])"?" else card.toString(),cardWidth,cardHeight)}
                         }
@@ -233,6 +240,8 @@ private fun CardSlot(text:String,width:androidx.compose.ui.unit.Dp,height:androi
 @Composable
 internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
     val g=model.casino.poker
+    fun rivalName(i:Int)=if(i==0)"You" else RoomStyle.entries[(model.room.ordinal+i-1)%RoomStyle.entries.size].host
+    fun castText(text:String):String { var result=text;g.seats.drop(1).forEachIndexed{j,p->result=result.replace(p.name,rivalName(j+1))};return result }
     var rules by remember{mutableStateOf(false)}
     var raiseTarget by remember(g.hand,g.actor,g.currentBet){mutableIntStateOf(g.currentBet+g.minRaise)}
     LaunchedEffect(g,g.actor,g.active,model.revision){if(g.active&&g.actor>0){delay(1100);model.change{g.botStep()}}}
@@ -263,14 +272,14 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
                 Column(Modifier.padding(14.dp),horizontalAlignment=Alignment.CenterHorizontally){
                     Text("POT ${g.pot} • HAND ${g.hand}",color=model.room.accent,fontSize=18.sp,fontWeight=FontWeight.Black)
                     Row(Modifier.padding(vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(5.dp)){repeat(5){i->g.board.getOrNull(i)?.let{CardView(it.toString(),49.dp,72.dp)}?:Box(Modifier.size(49.dp,72.dp).border(1.dp,Color.White.copy(alpha=.15f),RoundedCornerShape(8.dp)))}}
-                    Text(g.message,color=Color.White,fontSize=13.sp,textAlign=TextAlign.Center)
+                    Text(castText(g.message),color=Color.White,fontSize=13.sp,textAlign=TextAlign.Center)
                 }
             }
             val p=g.seats[0]
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("YOUR STACK ${p.stack}",color=model.room.accent,fontWeight=FontWeight.Black);Text("In this street: ${p.streetBet}",color=Color.LightGray,fontSize=12.sp);Text("Button: ${g.seats[g.button].name}",color=Color.LightGray,fontSize=12.sp)};p.hole.forEach{CardView(it.toString(),60.dp,86.dp);Spacer(Modifier.width(5.dp))}}
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("YOUR STACK ${p.stack}",color=model.room.accent,fontWeight=FontWeight.Black);Text("In this street: ${p.streetBet}",color=Color.LightGray,fontSize=12.sp);Text("Button: ${rivalName(g.button)}",color=Color.LightGray,fontSize=12.sp)};p.hole.forEach{CardView(it.toString(),60.dp,86.dp);Spacer(Modifier.width(5.dp))}}
             if(g.active){
                 val yourTurn=g.actor==0
-                Text(if(yourTurn)"YOUR MOVE" else "${g.seats[g.actor].name} is thinking…",color=model.room.accent,fontWeight=FontWeight.Bold)
+                Text(if(yourTurn)"YOUR MOVE" else "${rivalName(g.actor)} is thinking…",color=model.room.accent,fontWeight=FontWeight.Bold)
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
                     OutlinedButton(onClick={model.change{g.act(PokerAction.FOLD)}},enabled=yourTurn,modifier=Modifier.weight(1f)){Text("FOLD")}
                     Button(onClick={model.change{g.act(PokerAction.CALL)}},enabled=yourTurn,modifier=Modifier.weight(1f)){Text(if(g.toCall(0)==0)"CHECK" else "CALL ${minOf(g.toCall(0),p.stack)}")}
@@ -289,7 +298,7 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
                 Button(onClick={model.change{g.startHand()}},enabled=p.stack>0,modifier=Modifier.fillMaxWidth().testTag("poker-deal")){Text(if(g.hand==0)"DEAL FIRST HAND" else "NEXT HAND")}
                 OutlinedButton(onClick={model.change{model.game.bankroll+=g.cashOut()}},modifier=Modifier.fillMaxWidth()){Text("CASH OUT • ${p.stack} CHIPS")}
             }
-            if(g.log.isNotEmpty())Text(g.log.takeLast(5).joinToString("\n"),color=Color.LightGray,fontSize=11.sp)
+            if(g.log.isNotEmpty())Text(castText(g.log.takeLast(5).joinToString("\n")),color=Color.LightGray,fontSize=11.sp)
         }
         TextButton(onClick={rules=true}){Text("RULES & READING YOUR RIVALS")}
     }
@@ -332,4 +341,18 @@ private fun BanditLever(spinning:Boolean,enabled:Boolean,onPull:()->Unit,modifie
         drawCircle(Color(0xFF851E2B),size.width*.29f,knob)
         drawCircle(Color(0xFFE66562),size.width*.09f,knob-Offset(size.width*.08f,size.width*.09f))
     }
+}
+
+@Composable
+private fun Modifier.solitaireDrag(enabled:Boolean,pick:SolitairePick,targets:Map<Int,Rect>,onDrop:(Int)->Unit):Modifier {
+    var origin by remember{mutableStateOf(Offset.Zero)}
+    var shift by remember{mutableStateOf(Offset.Zero)}
+    val drop by rememberUpdatedState(onDrop)
+    return this.onGloballyPositioned{origin=it.boundsInRoot().topLeft}
+        .zIndex(if(shift==Offset.Zero)0f else 20f)
+        .graphicsLayer{translationX=shift.x;translationY=shift.y}
+        .pointerInput(enabled,pick){if(enabled)detectDragGesturesAfterLongPress(
+            onDragEnd={val point=origin+shift+Offset(size.width/2f,size.height/2f);targets.entries.firstOrNull{it.key!=pick.pile&&it.value.contains(point)}?.let{drop(it.key)};shift=Offset.Zero},
+            onDragCancel={shift=Offset.Zero},
+            onDrag={change,amount->change.consume();shift+=amount})}
 }

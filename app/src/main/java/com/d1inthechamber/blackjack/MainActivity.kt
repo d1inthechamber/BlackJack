@@ -587,8 +587,8 @@ fun CardView(text: String, width: androidx.compose.ui.unit.Dp, height: androidx.
                 }
             } else {
                 Column(Modifier.fillMaxSize().padding(5.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Text("$text", fontSize = if (width >= 70.dp) 19.sp else 15.sp, fontWeight = FontWeight.Black, color = if (red) CardRed else Color(0xFF171717))
-                    Text(text, modifier = Modifier.align(Alignment.CenterHorizontally), fontSize = if (width >= 70.dp) 28.sp else 21.sp, color = if (red) CardRed else Color(0xFF171717))
+                    Text("$text", maxLines = 1, softWrap = false, fontSize = if (width >= 70.dp) 19.sp else if(width < 50.dp) 11.sp else 15.sp, fontWeight = FontWeight.Black, color = if (red) CardRed else Color(0xFF171717))
+                    Text(text, modifier = Modifier.align(Alignment.CenterHorizontally), maxLines = 1, softWrap = false, fontSize = if (width >= 70.dp) 28.sp else if(width < 50.dp) 15.sp else 21.sp, color = if (red) CardRed else Color(0xFF171717))
                 }
             }
         }
