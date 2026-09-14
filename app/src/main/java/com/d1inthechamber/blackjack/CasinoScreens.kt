@@ -80,7 +80,7 @@ fun GameRoot(model:BlackjackViewModel) {
 }
 
 @Composable
-internal fun CasinoFrame(model:BlackjackViewModel,title:String,onBack:(()->Unit)?,content:@Composable ColumnScope.()->Unit){
+internal fun CasinoFrame(model:BlackjackViewModel,title:String,onBack:(()->Unit)?,content:@Composable ColumnScope.(Int)->Unit){
     RoomMusic(model.room,model.settings.music)
     Box(Modifier.fillMaxSize()){
         Image(painterResource(model.room.background),null,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
@@ -93,7 +93,7 @@ internal fun CasinoFrame(model:BlackjackViewModel,title:String,onBack:(()->Unit)
             }
             Text(model.room.title.uppercase(),color=model.room.accent,fontSize=11.sp,letterSpacing=3.sp)
             if(onBack!=null)Text(title,color=Color.White,fontSize=27.sp,fontWeight=FontWeight.Black)
-            content()
+            content(model.revision)
             if(model.game.bankroll<10&&!model.game.inRound&&!model.game.shuffling)Button(onClick={model.refill()},modifier=Modifier.fillMaxWidth()){Text("REFILL • 1,000 FREE CHIPS")}
             Spacer(Modifier.height(20.dp))
         }

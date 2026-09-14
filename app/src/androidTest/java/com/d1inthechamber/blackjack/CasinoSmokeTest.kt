@@ -15,6 +15,7 @@ class CasinoSmokeTest {
         val a=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
         clearLauncherDialog()
         assertTrue(a.rootInActiveWindow?.findAccessibilityNodeInfosByText("isn't responding")?.isEmpty()!=false)
+        Thread.sleep(250)
         val b=a.takeScreenshot();val file=java.io.File(rule.activity.getExternalFilesDir(null),"chaos-$name.png")
         file.outputStream().use{b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};b.recycle()
         a.executeShellCommand("cp ${file.absolutePath} /sdcard/Download/chaos-$name.png").use{java.io.FileInputStream(it.fileDescriptor).use{it.readBytes()}}
@@ -44,6 +45,7 @@ class CasinoSmokeTest {
         rule.runOnIdle{assertEquals(1000.0,m.game.bankroll,0.0);assertFalse(m.casino.poker.seated)}
         rule.onNodeWithTag("poker-buyin").performScrollTo().performClick();rule.onNodeWithTag("poker-deal").performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(4500);rule.waitForIdle()
+        rule.onNodeWithText("POT 15 • HAND 1").assertExists()
         rule.onNodeWithText("LOBBY").performScrollTo();shot("poker")
         rule.runOnIdle{assertTrue(m.casino.poker.active);assertEquals(0,m.casino.poker.actor)}
         rule.activityRule.scenario.recreate();rule.onNodeWithText("NO-LIMIT TEXAS HOLD’EM • 5 / 10").assertExists()

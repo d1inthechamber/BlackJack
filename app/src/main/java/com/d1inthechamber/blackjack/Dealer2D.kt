@@ -85,7 +85,6 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             drawRoundRect(Color(0xFF21151A),Offset(left+side*.17f,side*.32f),Size(side*.66f,side*.70f),androidx.compose.ui.geometry.CornerRadius(side*.18f),style=androidx.compose.ui.graphics.drawscope.Fill)
             drawRoundRect(room.accent.copy(alpha=.35f),Offset(left+side*.17f,side*.32f),Size(side*.66f,side*.70f),androidx.compose.ui.geometry.CornerRadius(side*.18f),style=Stroke(2.dp.toPx()))
             fun sprite(){sheet?.let{drawDealerPose(it,room,frame,left,side)}}
-            sprite()
             val tableY=side*.84f
             val tablePath=Path().apply{moveTo(0f,tableY+16.dp.toPx());quadraticBezierTo(width*.5f,tableY-13.dp.toPx(),width,tableY+16.dp.toPx());lineTo(width,height);lineTo(0f,height);close()}
             drawPath(tablePath,Brush.verticalGradient(listOf(Color(0xFF28402E),Color(0xFF0B211A)),startY=tableY,endY=height))
@@ -104,9 +103,9 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
                 if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((hand.x-cw*.39f).roundToInt(),(hand.y-cw*.20f).roundToInt()),dstSize=IntSize((cw*.78f).roundToInt(),(cw*.40f).roundToInt()))
                 else drawRect(Color(0xFF163758),hand-Offset(cw*.39f,cw*.20f),Size(cw*.78f,cw*.40f))
             }
-            // Restore only the forearms over the table, leaving the waist occluded behind it.
-            clipRect(left=left,top=tableY,right=left+side*.43f,bottom=height){sprite()}
-            clipRect(left=left+side*.61f,top=tableY,right=left+side,bottom=height){sprite()}
+            // Keep every finger intact. The artwork's waist baseline meets the felt;
+            // the back rail disappears behind the torso and the shoe remains under the hand.
+            sprite()
             drawLine(room.accent.copy(alpha=.5f),Offset(0f,height-1.dp.toPx()),Offset(width,height-1.dp.toPx()),2.dp.toPx())
         }
         Box(Modifier.offset {IntOffset((shoe.x-cw*.60f).roundToInt(),(shoe.y-cw*.60f).roundToInt())}
