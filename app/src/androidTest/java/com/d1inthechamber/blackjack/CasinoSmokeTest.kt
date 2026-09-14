@@ -23,7 +23,7 @@ class CasinoSmokeTest {
     @Test fun lobbySlotsAndSaveArePlayable(){
         reset();rule.onNodeWithText("CASINO CHAOS").assertIsDisplayed();shot("lobby")
         rule.onNodeWithText("SLOTS").performScrollTo().performClick()
-        rule.onNodeWithTag("slot-spin").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Pull slot machine lever").performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(2400);rule.waitForIdle();rule.onNodeWithTag("slot-reel-0").assertIsDisplayed();shot("slots")
         val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnIdle{assertEquals(1,m.casino.slots.spins);assertEquals(990.0+m.casino.slots.returned,m.game.bankroll,0.0)}
@@ -33,7 +33,8 @@ class CasinoSmokeTest {
     @Test fun solitaireDrawUndoAndRoomTheme(){
         reset();rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
         rule.onNodeWithText("DRAW (24)").performClick();rule.onNodeWithText("DRAW (23)").assertExists()
-        rule.onNodeWithText("UNDO").performClick();rule.onNodeWithText("DRAW (24)").assertExists();shot("solitaire")
+        rule.onNodeWithText("UNDO").performClick();rule.onNodeWithText("DRAW (24)").assertExists();repeat(7){rule.onNodeWithTag("sol-column-$it").assertIsDisplayed()}
+        shot("solitaire")
         rule.activityRule.scenario.recreate();rule.onNodeWithText("DRAW (24)").assertExists()
     }
     @Test fun pokerBuyInCashOutAndBotTurn(){
