@@ -313,8 +313,8 @@ private fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifier
         if(acting&&p.expression==3){repeat(4){frame=if(it%2==0)10 else 11;delay(240)};frame=8}
     }
     Box(modifier.testTag("poker-portrait-$index").semantics{contentDescription=room.host;stateDescription=if(sheet==null)"Loading" else "Ready"},contentAlignment=Alignment.Center){
-    if(sheet==null)Text("Taking a seat…",color=room.accent,fontSize=10.sp,textAlign=TextAlign.Center)
     Canvas(Modifier.fillMaxSize().clipToBounds()){
+        if(sheet==null)drawCircle(room.accent.copy(alpha=.4f),size.minDimension*.12f,center,style=Stroke(2.dp.toPx()))
         // Use the very same keyed animation atlas as the blackjack dealer.
         sheet?.let{drawDealerPose(it,room,frame,-size.width*.16f,size.width*1.32f)}
         drawLine(room.accent,Offset(0f,size.height-2f),Offset(size.width,size.height-2f),4f)
