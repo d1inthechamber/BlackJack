@@ -77,7 +77,7 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
         val width=with(density){maxWidth.toPx()};val height=with(density){maxHeight.toPx()}
         val side=min(height-with(density){32.dp.toPx()},width*.76f).coerceAtLeast(1f)
         val left=(width-side)/2f
-        val cw=max(side*.36f,with(density){44.dp.toPx()})
+        val cw=max(side*.31f,with(density){44.dp.toPx()})
         val shoe=Offset(left+side*.28f,side*.94f)
         SideEffect{flights.spriteLocal=Rect(left,0f,left+side,side)}
         Canvas(Modifier.fillMaxSize()) {
@@ -92,13 +92,24 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             drawPath(rail,Color(0xFF37251D),style=Stroke(9.dp.toPx()))
             drawPath(rail,room.accent.copy(alpha=.65f),style=Stroke(1.2.dp.toPx()))
             sprite()
-            // Angled wood-and-brass shoe with a deep card stack, separate from the live card.
-            val sx=shoe.x-cw*.55f;val sy=shoe.y-cw*.29f
-            val casing=Path().apply{moveTo(sx,sy);lineTo(sx+cw*.92f,sy-cw*.24f);lineTo(sx+cw*1.13f,sy+cw*.50f);lineTo(sx+cw*.10f,sy+cw*.67f);close()}
-            drawPath(casing,Color(0xFF4C3425));drawPath(casing,room.accent,style=Stroke(2.dp.toPx()))
-            repeat(9){i->val shift=if(game.shuffling&&animated)sin(shuffleTime+i*.7f)*cw*.10f else 0f;val y=sy+cw*.29f+i*cw*.026f;drawLine(Color(0xFFEAE0CB),Offset(sx+cw*.13f+shift,y),Offset(sx+cw*.91f+shift,y-cw*.09f),1.dp.toPx())}
-            if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((shoe.x-cw*.42f).roundToInt(),(shoe.y-cw*.25f).roundToInt()),dstSize=IntSize((cw*.78f).roundToInt(),(cw*.40f).roundToInt()))
-            else drawRoundRect(Color(0xFF163758),Offset(shoe.x-cw*.42f,shoe.y-cw*.25f),Size(cw*.78f,cw*.40f),androidx.compose.ui.geometry.CornerRadius(3f))
+            // Low, solid shoe: sloping top, exposed paper edges and a dark output lip.
+            val sx=shoe.x-cw*.55f;val sy=shoe.y-cw*.22f
+            drawOval(Color.Black.copy(alpha=.45f),Offset(sx-cw*.10f,sy+cw*.35f),Size(cw*1.35f,cw*.25f))
+            val base=Path().apply{moveTo(sx,sy+cw*.15f);lineTo(sx+cw,sy);lineTo(sx+cw*1.12f,sy+cw*.53f);lineTo(sx+cw*.12f,sy+cw*.67f);close()}
+            drawPath(base,Color(0xFF3A231C));drawPath(base,room.accent,style=Stroke(1.5.dp.toPx()))
+            repeat(10){i->val shift=if(game.shuffling&&animated)sin(shuffleTime+i*.7f)*cw*.09f else 0f
+                val y=sy+cw*.16f+i*cw*.032f
+                drawLine(Color(0xFFEBE3CD),Offset(sx+cw*.10f+shift,y+cw*.09f),Offset(sx+cw*.97f+shift,y),1.1.dp.toPx())}
+            val deckTop=Offset(sx+cw*.09f,sy+cw*.015f)
+            val deckSize=Size(cw*.86f,cw*.30f)
+            drawRoundRect(Color(0xFFF0E8CF),deckTop-Offset(2f,2f),deckSize+Size(4f,4f),androidx.compose.ui.geometry.CornerRadius(3f))
+            if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset(deckTop.x.roundToInt(),deckTop.y.roundToInt()),dstSize=IntSize(deckSize.width.roundToInt(),deckSize.height.roundToInt()))
+            else {
+                drawRoundRect(Color(0xFF163758),deckTop,deckSize,androidx.compose.ui.geometry.CornerRadius(3f))
+                drawRoundRect(room.accent.copy(alpha=.7f),deckTop+Offset(cw*.08f,cw*.04f),Size(cw*.70f,cw*.22f),androidx.compose.ui.geometry.CornerRadius(2f),style=Stroke(1.dp.toPx()))
+                val diamond=Path().apply{moveTo(shoe.x,sy+cw*.06f);lineTo(shoe.x+cw*.08f,sy+cw*.15f);lineTo(shoe.x,sy+cw*.24f);lineTo(shoe.x-cw*.08f,sy+cw*.15f);close()};drawPath(diamond,room.accent)
+            }
+            drawLine(Color(0xFF100F12),Offset(sx+cw*.16f,sy+cw*.53f),Offset(sx+cw*1.02f,sy+cw*.40f),cw*.065f)
             if(phase in .38f.. .68f){
                 val hand=flights.localHand(phase)
                 if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset((hand.x-cw*.39f).roundToInt(),(hand.y-cw*.20f).roundToInt()),dstSize=IntSize((cw*.78f).roundToInt(),(cw*.40f).roundToInt()))
@@ -113,7 +124,7 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             .size(with(density){(cw*1.4f).toDp()},with(density){(cw*1.25f).toDp()})
             .testTag("visible-shoe").semantics{contentDescription="Physical six-deck shoe on table, ${game.deckRemaining} cards"})
         Text(if(game.shuffling)"SHUFFLING…" else "SHOE ${game.deckRemaining}",color=room.accent,fontSize=10.sp,
-            modifier=Modifier.offset { IntOffset((shoe.x-cw*.55f).roundToInt(),(shoe.y+cw*.39f).roundToInt()) })
+            modifier=Modifier.offset { IntOffset((shoe.x-cw*.55f).roundToInt(),min(shoe.y+cw*.49f,height-with(density){15.dp.toPx()}).roundToInt()) })
     }
 }
 
