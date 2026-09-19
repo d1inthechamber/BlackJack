@@ -3,6 +3,8 @@ package com.d1inthechamber.blackjack
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -124,7 +126,7 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
             .size(with(density){(cw*1.4f).toDp()},with(density){(cw*1.25f).toDp()})
             .testTag("visible-shoe").semantics{contentDescription="Physical six-deck shoe on table, ${game.deckRemaining} cards"})
         Text(if(game.shuffling)"SHUFFLING…" else "SHOE ${game.deckRemaining}",color=room.accent,fontSize=10.sp,
-            modifier=Modifier.offset { IntOffset((shoe.x-cw*.55f).roundToInt(),min(shoe.y+cw*.49f,height-with(density){15.dp.toPx()}).roundToInt()) })
+            modifier=Modifier.offset { IntOffset((shoe.x+cw*.70f).roundToInt(),min(shoe.y+cw*.15f,height-with(density){25.dp.toPx()}).roundToInt()) }.background(Color.Black.copy(alpha=.7f),RoundedCornerShape(4.dp)).padding(horizontal=5.dp,vertical=2.dp))
     }
 }
 
