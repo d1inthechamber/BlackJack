@@ -102,7 +102,7 @@ internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlight
                 drawLine(Color(0xFFEBE3CD),Offset(sx+cw*.10f+shift,y+cw*.09f),Offset(sx+cw*.97f+shift,y),1.1.dp.toPx())}
             val deckTop=Offset(sx+cw*.09f,sy+cw*.015f)
             val deckSize=Size(cw*.86f,cw*.30f)
-            drawRoundRect(Color(0xFFF0E8CF),deckTop-Offset(2f,2f),deckSize+Size(4f,4f),androidx.compose.ui.geometry.CornerRadius(3f))
+            drawRoundRect(Color(0xFFF0E8CF),deckTop-Offset(2f,2f),Size(deckSize.width+4f,deckSize.height+4f),androidx.compose.ui.geometry.CornerRadius(3f))
             if(back!=null)drawImage(back,srcSize=IntSize(back.width,back.height),dstOffset=IntOffset(deckTop.x.roundToInt(),deckTop.y.roundToInt()),dstSize=IntSize(deckSize.width.roundToInt(),deckSize.height.roundToInt()))
             else {
                 drawRoundRect(Color(0xFF163758),deckTop,deckSize,androidx.compose.ui.geometry.CornerRadius(3f))
