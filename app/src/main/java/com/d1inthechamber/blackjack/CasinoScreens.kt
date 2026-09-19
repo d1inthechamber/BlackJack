@@ -177,6 +177,7 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
 internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
     val g=model.casino.solitaire
     val targets=remember{mutableMapOf<Int,Rect>()}
+    val drag=remember(g){SolitaireDragState()}
     var selected by remember(g){mutableStateOf<SolitairePick?>(null)}
     var note by remember{mutableStateOf("Tap a card to move it, or hold and drag it to a pile.")}
     var newDraw by remember{mutableStateOf<Int?>(null)}
@@ -201,19 +202,19 @@ internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
         Column(Modifier.fillMaxWidth()){
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){
                 Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("STOCK",color=Color.LightGray,fontSize=10.sp);Box(Modifier.clickable{model.change{g.draw()};selected=null}){if(g.stock.isNotEmpty())CardView("?",cardWidth,cardHeight) else CardSlot("↻",cardWidth,cardHeight)}}
-                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("WASTE",color=Color.LightGray,fontSize=10.sp);val p=SolitairePick(-1,g.waste.lastIndex);Box(Modifier.solitaireDrag(g.waste.isNotEmpty(),p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent).clickable{if(g.waste.isNotEmpty())select(p)}){g.waste.lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("—",cardWidth,cardHeight)}}
+                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("WASTE",color=Color.LightGray,fontSize=10.sp);val p=SolitairePick(-1,g.waste.lastIndex);Box(Modifier.solitaireDrag(drag,g.waste.isNotEmpty(),p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent).clickable{if(g.waste.isNotEmpty())select(p)}){g.waste.lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("—",cardWidth,cardHeight)}}
                 Spacer(Modifier.width(cardWidth))
                 repeat(4){f->Column(Modifier.width(cardWidth).onGloballyPositioned{targets[f+7]=it.boundsInRoot()},horizontalAlignment=Alignment.CenterHorizontally){Text("HOME ${f+1}",color=model.room.accent,fontSize=10.sp);Box(Modifier.clickable{if(selected!=null)move(f+7)else if(g.foundations[f].isNotEmpty())selected=SolitairePick(f+7,g.foundations[f].lastIndex)}){g.foundations[f].lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("A",cardWidth,cardHeight)}}}
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
-                repeat(7){c->Column(Modifier.width(cardWidth)){
+                repeat(7){c->Column(Modifier.width(cardWidth).zIndex(if(drag.pick?.pile==c)30f else 0f)){
                     Text("${c+1}",color=model.room.accent,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
                     val count=g.columns[c].size
                     Box(Modifier.width(cardWidth).height((maxOf(0,count-1)*30+100).dp).testTag("sol-column-$c").onGloballyPositioned{targets[c]=it.boundsInRoot()}){
                         if(count==0)Box(Modifier.clickable{move(c)}){CardSlot("K",cardWidth,cardHeight)}
                         g.columns[c].forEachIndexed{i,card->val p=SolitairePick(c,i)
-                            Box(Modifier.offset(y=(i*30).dp).solitaireDrag(i>=g.hidden[c],p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent,RoundedCornerShape(12.dp)).clickable{
+                            Box(Modifier.offset(y=(i*30).dp).testTag("sol-card-$c-$i").solitaireDrag(drag,i>=g.hidden[c],p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent,RoundedCornerShape(12.dp)).clickable{
                                 if(selected!=null&&selected!!.pile!=c)move(c)else if(i>=g.hidden[c])select(p)
                             }){CardView(if(i<g.hidden[c])"?" else card.toString(),cardWidth,cardHeight)}
                         }
@@ -336,18 +337,23 @@ private fun BanditLever(spinning:Boolean,enabled:Boolean,onPull:()->Unit,modifie
     }
 }
 
+private class SolitaireDragState {
+    var pick by mutableStateOf<SolitairePick?>(null)
+    var shift by mutableStateOf(Offset.Zero)
+}
+
 @Composable
-private fun Modifier.solitaireDrag(enabled:Boolean,pick:SolitairePick,targets:Map<Int,Rect>,onDrop:(Int)->Unit):Modifier {
+private fun Modifier.solitaireDrag(state:SolitaireDragState,enabled:Boolean,pick:SolitairePick,targets:Map<Int,Rect>,onDrop:(Int)->Unit):Modifier {
     var origin by remember{mutableStateOf(Offset.Zero)}
-    var shift by remember{mutableStateOf(Offset.Zero)}
     var dragOrigin by remember{mutableStateOf(Offset.Zero)}
     val drop by rememberUpdatedState(onDrop)
+    val follows=state.pick?.let{it.pile==pick.pile&&pick.index>=it.index}==true
     return this.onGloballyPositioned{origin=it.boundsInRoot().topLeft}
-        .zIndex(if(shift==Offset.Zero)0f else 20f)
-        .graphicsLayer{translationX=shift.x;translationY=shift.y}
+        .zIndex(if(follows)20f else 0f)
+        .graphicsLayer{translationX=if(follows)state.shift.x else 0f;translationY=if(follows)state.shift.y else 0f}
         .pointerInput(enabled,pick){if(enabled)detectDragGesturesAfterLongPress(
-            onDragStart={dragOrigin=origin},
-            onDragEnd={val point=dragOrigin+shift+Offset(size.width/2f,size.height/2f);targets.entries.firstOrNull{it.key!=pick.pile&&it.value.contains(point)}?.let{drop(it.key)};shift=Offset.Zero},
-            onDragCancel={shift=Offset.Zero},
-            onDrag={change,amount->change.consume();shift+=amount})}
+            onDragStart={dragOrigin=origin;state.pick=pick;state.shift=Offset.Zero},
+            onDragEnd={val point=dragOrigin+state.shift+Offset(size.width/2f,size.height/2f);targets.entries.firstOrNull{it.key!=pick.pile&&it.value.contains(point)}?.let{drop(it.key)};state.shift=Offset.Zero;state.pick=null},
+            onDragCancel={state.shift=Offset.Zero;state.pick=null},
+            onDrag={change,amount->change.consume();state.shift+=amount})}
 }

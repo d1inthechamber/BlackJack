@@ -51,6 +51,28 @@ class CasinoSmokeTest {
         rule.runOnIdle{assertTrue(m.casino.poker.active);assertEquals(0,m.casino.poker.actor)}
         rule.activityRule.scenario.recreate();rule.onNodeWithText("NO-LIMIT TEXAS HOLD’EM • 5 / 10").assertExists()
     }
+    @Test fun solitaireDragMovesAnEntireSequence(){
+        reset();rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread{m.change{
+            val g=m.casino.solitaire
+            g.columns.forEach{it.clear()};g.hidden.indices.forEach{g.hidden[it]=0}
+            g.columns[0].addAll(listOf(Card("K","♠"),Card("Q","♥"),Card("J","♣")))
+        }}
+        val source=rule.onNodeWithTag("sol-card-0-0").fetchSemanticsNode().boundsInRoot
+        val target=rule.onNodeWithTag("sol-column-1").fetchSemanticsNode().boundsInRoot
+        rule.onNodeWithTag("sol-card-0-0").performTouchInput{
+            down(androidx.compose.ui.geometry.Offset(center.x,8f))
+            advanceEventTime(700)
+            moveBy(androidx.compose.ui.geometry.Offset(target.center.x-source.center.x,0f))
+            up()
+        }
+        rule.waitForIdle()
+        rule.runOnIdle{
+            assertTrue(m.casino.solitaire.columns[0].isEmpty())
+            assertEquals(listOf("K","Q","J"),m.casino.solitaire.columns[1].map{it.rank})
+        }
+    }
     @Test fun settingsStayAccessibleAndVoiceFilesPlay(){
         reset()
         rule.onNodeWithTag("settings-button").assertIsDisplayed().performClick()
