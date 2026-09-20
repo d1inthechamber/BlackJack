@@ -13,8 +13,8 @@ android {
         minSdk = 24
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 18
-        versionName = "3.2"
+        versionCode = 19
+        versionName = "3.3"
     }
 
     // Public development key: keeps sideloaded test updates compatible. Not a release key.
@@ -29,6 +29,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

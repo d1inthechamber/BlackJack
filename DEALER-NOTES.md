@@ -22,7 +22,7 @@ until cards land. Bankroll is shown alongside the bet controls.
 ## Room sets (2.2)
 Five selectable rooms preserve the same saved hand and bank. Each new room has a background, themed card backs and paper/border colors, and its own articulated painted dealer. The user approved the 2D art direction. New dealer textures use a green-screen key in the fragment shader; Vegas retains its original alpha texture. The room preference is stored separately from the game save.
 
-Carnival follows the supplied costume photo and text-free card character reference. Pharaoh’s Palace uses Tutankhamun, Ironworks uses Ebenezer Scrooge, West Coast ’94 uses Eazy-E.
+The existing approved character artwork is retained in every room: the supplied carnival host, pharaoh, factory-era card sharp, ’90s West Coast host, punk rocker, green champion, and original Vegas dealer. Public-facing labels use these neutral role descriptions and do not claim a real person or recognizable literary character.
 
 ## v2.3 cartoon animation update
 The user approved the 12-pose 2D cartoon direction. DealerStage replaces the relief renderer in the table UI, decodes keyed artwork once off the main thread, and shares a 1,080 ms clock with card movement. The shoe remains at the hand contact position. The card is drawn beneath the hand until release, then travels to the actual card slot; input stays locked until arrival. Reactions use round net from the player's perspective: positive=angry, zero=smug, negative=laugh.

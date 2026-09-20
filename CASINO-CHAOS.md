@@ -1,11 +1,12 @@
-# Casino Chaos 3.0
+# Casino Chaos 3.3
 
-Expands Royal Felt / BlackJack into a four-game, seven-room offline casino. Package ID and development signing key remain unchanged for sideload updates. This is a development APK, not a Play Store production release.
+Expands Royal Felt / BlackJack into a five-game, seven-room offline casino. Package ID and development signing key remain unchanged for sideload updates. This is a development APK, not a Play Store production release.
 
 - Blackjack retains its rules, dealer sprites, sounds, flights, and legacy save migration.
 - Slots: one payline, independent 20-stop reels, weights 6/5/4/3/2, triple payouts 5/8/15/30/60 times stake. Exactly two lowest symbols pay 2 times stake. Exhaustive theoretical return 91.925%. Outcomes are saved with the wallet before cosmetic reel animation, so closing cannot replay a wager.
 - Solitaire: 52-card Klondike, draw one or three, unlimited recycling, alternating descending tableau sequences, kings in empty columns, ascending same-suit foundations, manual moves from foundations, undo and hints. Win reward 100 chips once per deal; undo disabled after completion.
 - Poker: four-seat no-limit Texas Hold'em, rotating 5/10 blinds, full best-five evaluation, side pots, unmatched refunds, split pots and clockwise odd chips. Short all-ins do not reopen action unless the cumulative increase reaches a full raise. Buy-in 100–500 chips, cash out only between hands. Busted bots re-buy between hands. No rake.
+- Street Craps: pass-line play against the current room character. A matched pile of fictional U.S.-style bills stays centered through the point, and the winner’s hand visibly collects it after the deciding throw.
 - Five bot personalities and noisy gestures. Decisions receive only own cards, public board, betting amounts, player count, and the human's public raise count. Simulated unseen cards never use the actual future deck. The Veteran adjusts to frequent human raises. Room-specific names and animated original vector portraits.
 - Shared wallet and all game states use a single atomic serialized archive, migrated from the prior blackjack save. Poker table stack is escrowed outside the lobby wallet. Existing blackjack hand must finish before entering other games. Games pause off-screen and resume on return. Fresh casino reset requires confirmation.
 - Common room backgrounds, card backs, music and persistent music switch. New Casino Chaos launcher name and generated icon.
@@ -23,6 +24,15 @@ Validation: fixed-odds exhaustive payout test, card conservation, solitaire move
 
 Added The Green Room with reference-based masked, bucket-hat champion dealer, twelve poses, cannabis-themed background and card backs, its own original instrumental loop, slot symbols and poker cast. Added independent persistent music/effects/voices/ambience controls on a separate settings screen accessible from the fixed top-right button on every game screen.
 
-Dealer is occluded by a physical felt table and rail, with forearms layered over the surface; larger angled shoe remains visible beside the dealing hand. Removed whole-body idle wink jumps and unnecessary reverse contact pose; slowed laugh cadence. Short procedurally synthesized cartoon grunt/groan/laugh effects react once to new completed hands, stop when voices are muted, and vary pitch by room. Source generator: art/casino-chaos/make_audio.py.
+Dealer is occluded by a physical felt table and rail, with forearms layered over the surface; larger angled shoe remains visible beside the dealing hand. Removed whole-body idle wink jumps and unnecessary reverse contact pose; slowed laugh cadence. Short recorded human grunt/groan/laugh effects react once to new completed hands and Street Craps results, never loop, and stop when voices are muted. Sources and licenses are documented in `AUDIO-CREDITS.md`.
+
+## 3.3 release update
+
+- Added fixed Games, Rooms, and Settings navigation with animated casino transitions.
+- Split Rooms and Settings into separate high-contrast screens with visual-test coverage.
+- Added dead-deal detection to solitaire without changing the v3.2 serialized archive shape.
+- Decluttered poker opponents, retained the existing room character artwork, and added animated emotional reactions plus recorded human reaction audio.
+- Preserved all approved dealer and opponent sprite artwork. Direct legacy celebrity and literary-character labels were replaced with neutral role descriptions only; the characters themselves were not replaced.
+- Stores Street Craps in a versioned sidecar so existing v3.2 blackjack/casino saves continue to load unchanged.
 
 Generated Green Room art used the built-in image tool: reference-based 4x3 cel-animated dealer atlas (no text, cards or grid); empty smoky 1970s green/amber lounge; antique gold cannabis-leaf card back. Packaging only resized these images.

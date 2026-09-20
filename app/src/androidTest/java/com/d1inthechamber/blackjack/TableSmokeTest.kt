@@ -148,7 +148,8 @@ class TableSmokeTest {
         rule.runOnUiThread { model.startNew();model.game.addBet(25) }
         val before=model.game.savedGame()
         for(room in RoomStyle.entries.filter { it!=RoomStyle.VEGAS }) {
-            rule.onNodeWithTag("settings-button").performClick()
+            rule.onNodeWithTag("nav-rooms").performClick()
+            rule.onNodeWithTag("rooms-content").assertIsDisplayed()
             rule.onNodeWithText(room.title,substring=true).performScrollTo().performClick()
             rule.runOnIdle {
                 org.junit.Assert.assertEquals(room,model.room)
@@ -160,7 +161,7 @@ class TableSmokeTest {
                     bitmap?.recycle()
                 }
             }
-            rule.onNodeWithText("BACK").performScrollTo().performClick()
+            rule.onNodeWithTag("nav-games").performClick()
             rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
             rule.onNodeWithText("AVAILABLE 1000 CHIPS").assertIsDisplayed()
             screenshot("room-${room.id}")

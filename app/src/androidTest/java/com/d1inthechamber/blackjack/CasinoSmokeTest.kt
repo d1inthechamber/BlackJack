@@ -49,6 +49,7 @@ class CasinoSmokeTest {
         rule.onNodeWithText("POT 15 • HAND 1").assertExists()
         rule.waitUntil(timeoutMillis=15000){rule.onAllNodes(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==3}
         rule.mainClock.advanceTimeByFrame();rule.waitForIdle()
+        (1..3).forEach{rule.onNodeWithTag("poker-reaction-$it").assertIsDisplayed()}
         rule.onNodeWithText("LOBBY").performScrollTo();shot("poker")
         rule.runOnIdle{assertTrue(m.casino.poker.active);assertEquals(0,m.casino.poker.actor)}
         rule.activityRule.scenario.recreate();rule.onNodeWithText("NO-LIMIT TEXAS HOLD’EM • 5 / 10").assertExists()
@@ -78,17 +79,24 @@ class CasinoSmokeTest {
     @Test fun settingsStayAccessibleAndVoiceFilesPlay(){
         reset()
         rule.onNodeWithTag("settings-button").assertIsDisplayed().performClick()
+        rule.onNodeWithTag("settings-content").assertIsDisplayed()
         rule.onNodeWithContentDescription("DEALER VOICES").assertExists()
+        rule.onNodeWithText("The Green Room",substring=true).assertDoesNotExist()
+        shot("settings")
         val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnUiThread{m.settings.set("voices",false)}
         rule.activityRule.scenario.recreate()
         rule.onNodeWithContentDescription("DEALER VOICES").assertIsOff()
+
+        rule.onNodeWithTag("nav-rooms").performClick()
+        rule.onNodeWithTag("rooms-content").assertIsDisplayed()
         rule.onNodeWithText("The Green Room",substring=true).performScrollTo().performClick()
-        rule.onNodeWithTag("settings-button").assertIsDisplayed()
-        rule.onNodeWithText("BACK").performScrollTo().performClick()
-        for(game in listOf("SLOTS","SOLITAIRE","POKER")){
+        shot("rooms")
+        rule.onNodeWithTag("nav-games").performClick()
+        for(game in listOf("SLOTS","SOLITAIRE","POKER","CRAPS")){
             rule.onNodeWithText(game).performScrollTo().performClick()
             rule.onNodeWithTag("settings-button").assertIsDisplayed().performClick()
+            rule.onNodeWithTag("settings-content").assertIsDisplayed()
             rule.onNodeWithText("BACK").performClick()
             rule.onNodeWithText("LOBBY").performScrollTo().performClick()
         }
@@ -96,6 +104,36 @@ class CasinoSmokeTest {
             val p=android.media.MediaPlayer.create(rule.activity,id);assertNotNull(p);assertTrue(p.duration>200);p.release()
         }
         rule.runOnUiThread{m.settings.set("voices",true);m.selectRoom(RoomStyle.VEGAS)}
+    }
+
+    @Test fun streetCrapsKeepsThePileCenteredAndShowsWinnerCollection(){
+        reset();rule.onNodeWithText("CRAPS").performScrollTo().performClick()
+        rule.onNodeWithTag("craps-street").assertIsDisplayed()
+        rule.onNodeWithTag("craps-hand").assertIsDisplayed()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread{
+            m.shootCraps(4,4)
+            assertEquals(8,m.craps.point)
+            assertEquals(50,m.craps.centerPot)
+            assertEquals(975.0,m.game.bankroll,0.0)
+        }
+        rule.onNodeWithText("POINT 8").assertIsDisplayed()
+        rule.onNodeWithTag("craps-money-pile").assertIsDisplayed()
+        shot("craps")
+
+        rule.mainClock.autoAdvance=false
+        try{
+            rule.runOnUiThread{
+                m.shootCraps(4,4)
+                assertEquals(CrapsWinner.PLAYER,m.craps.winner)
+                assertEquals(1025.0,m.game.bankroll,0.0)
+                assertEquals(1,m.craps.collectionPulse)
+            }
+            rule.mainClock.advanceTimeByFrame();rule.waitForIdle()
+            rule.onNodeWithTag("craps-collector").assertExists()
+            rule.mainClock.advanceTimeBy(260);rule.waitForIdle()
+            shot("craps-win")
+        }finally{rule.mainClock.autoAdvance=true}
     }
 
 }

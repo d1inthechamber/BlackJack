@@ -55,7 +55,8 @@ internal fun decodeDealer(context:android.content.Context,room:RoomStyle):ImageB
 @Composable
 internal fun DealerStage(game:BlackjackState,animated:Boolean,flights:CardFlights,modifier:Modifier) {
     val room=LocalRoomStyle.current;val context=LocalContext.current
-    val sheet by produceState<ImageBitmap?>(null,room) { value=withContext(Dispatchers.Default){decodeDealer(context,room)} }
+    var sheet by remember(room){mutableStateOf<ImageBitmap?>(null)}
+    LaunchedEffect(room){sheet=withContext(Dispatchers.Default){decodeDealer(context,room)}}
     val back=remember(room) { room.cardBack?.let { ImageBitmap.imageResource(context.resources,it) } }
     var reactionFrame by remember(room) { mutableIntStateOf(0) }
     val mood=if(game.finished&&!game.shuffling)dealerMood(game.lastRound?.net) else DealerMood.IDLE

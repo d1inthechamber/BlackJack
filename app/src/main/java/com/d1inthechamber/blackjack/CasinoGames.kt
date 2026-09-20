@@ -88,3 +88,22 @@ internal class SolitaireGame(val drawCount:Int=1, rng:Random=Random()):Serializa
         return null
     }
 }
+
+// Extensions deliberately keep the serialized SolitaireGame class shape identical to
+// v3.2 while adding no-moves detection for this release.
+internal val SolitaireGame.stuck: Boolean get() = !won && !hasAvailableMove()
+
+internal fun SolitaireGame.hasAvailableMove():Boolean {
+    if(won)return false
+    val picks=mutableListOf<SolitairePick>()
+    if(waste.isNotEmpty())picks.add(SolitairePick(-1,waste.lastIndex))
+    for(c in 0..6)for(i in hidden[c] until columns[c].size)picks.add(SolitairePick(c,i))
+    for(f in 7..10)if(foundations[f-7].isNotEmpty())picks.add(SolitairePick(f,foundations[f-7].lastIndex))
+    if(picks.any{p->(0..10).any{d->legal(p,d)}})return true
+    // With unlimited recycling, every remaining stock/waste card is reachable on a
+    // later pass, so do not report a dead deal while drawing can still expose a move.
+    return (stock+waste).distinct().any{card->
+        (0..6).any{d->columns[d].lastOrNull()?.let{it.red!=card.red&&it.number==card.number+1}?: (card.number==13)} ||
+            (7..10).any{d->foundations[d-7].lastOrNull()?.let{it.suit==card.suit&&card.number==it.number+1}?: (card.number==1)}
+    }
+}

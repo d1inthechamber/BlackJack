@@ -306,19 +306,33 @@ class BlackjackViewModel(application: android.app.Application) : androidx.lifecy
     fun selectRoom(value: RoomStyle) { room=value; roomPreferences.save(value) }
     private val store = GameStore(application)
     private val casinoStore = CasinoStore(application)
+    private val crapsStore = CrapsStore(application)
     private val archive = casinoStore.load()
     internal var casino = archive?.casino ?: CasinoState()
+    internal var craps by mutableStateOf(crapsStore.load() ?: CrapsGame())
     var revision by mutableIntStateOf(0)
         private set
     var game by mutableStateOf(archive?.blackjack?.restore() ?: store.load() ?: BlackjackState())
     var hasSaved by mutableStateOf(archive != null || store.exists())
     init { attach() }
     private fun attach() { game.onChanged = { save() } }
-    fun save() { casinoStore.save(game,casino); hasSaved = true; revision++ }
-    fun startNew() { casino=CasinoState(); game = BlackjackState(); attach(); save() }
+    fun save() { casinoStore.save(game,casino); crapsStore.save(craps); hasSaved = true; revision++ }
+    fun startNew() { casino=CasinoState(); craps=CrapsGame(); game = BlackjackState(); attach(); save() }
     internal fun change(action:()->Unit) { action(); save() }
     internal fun refill() { if(!game.inRound && !game.shuffling && game.bankroll<10) { game.bankroll+=1000;save() } }
     internal fun enter(name:String) { casino.lastGame=name;save() }
+    internal fun setCrapsBet(amount:Int) = change { craps.setBet(amount) }
+    internal fun shootCraps(first:Int?=null,second:Int?=null) {
+        if(!craps.active && craps.winner==CrapsWinner.NONE) {
+            if(game.bankroll<craps.bet)return
+            game.bankroll-=craps.begin()
+        }
+        change {
+            val result=if(first!=null&&second!=null)craps.roll(first,second) else craps.roll()
+            game.bankroll+=result.payout
+        }
+    }
+    internal fun finishCrapsCollection() = change { craps.finishCollection() }
 
 }
 

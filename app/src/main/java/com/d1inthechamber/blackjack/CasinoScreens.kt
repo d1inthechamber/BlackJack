@@ -2,6 +2,9 @@ package com.d1inthechamber.blackjack
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -45,13 +48,14 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import kotlin.math.abs
 
 @Composable
 fun GameRoot(model:BlackjackViewModel) {
     val revision=model.revision
     var screen by rememberSaveable { mutableStateOf("LOBBY") }
     var confirmNew by remember {mutableStateOf(false)}
-    var beforeSettings by rememberSaveable {mutableStateOf("LOBBY")}
+    var beforeUtility by rememberSaveable {mutableStateOf("LOBBY")}
     var foreground by remember {mutableStateOf(true)}
     val owner=LocalLifecycleOwner.current
     DisposableEffect(owner){val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_STOP)foreground=false else if(event==Lifecycle.Event.ON_START)foreground=true};owner.lifecycle.addObserver(observer);onDispose{owner.lifecycle.removeObserver(observer)}}
@@ -59,15 +63,21 @@ fun GameRoot(model:BlackjackViewModel) {
         MaterialTheme(colorScheme=darkColorScheme(primary=model.room.accent,secondary=model.room.button)) {
             val lobby={model.save();screen="LOBBY"}
             val enter:(String)->Unit={model.enter(it);screen=it}
-            BackHandler(screen!="LOBBY"){if(screen=="SETTINGS")screen=beforeSettings else lobby()}
+            BackHandler(screen!="LOBBY"){if(screen=="SETTINGS"||screen=="ROOMS")screen=beforeUtility else lobby()}
             Box(Modifier.fillMaxSize().background(Color(0xFF100D14))) {
-            Box(Modifier.fillMaxSize().padding(top=48.dp)) {
-            if(!foreground)Box(Modifier.fillMaxSize().background(Color.Black)) else when(screen){
-                "SETTINGS"->SettingsPage(model){screen=beforeSettings}
+            Box(Modifier.fillMaxSize().padding(top=58.dp)) {
+            if(!foreground)Box(Modifier.fillMaxSize().background(Color.Black)) else AnimatedContent(
+                targetState=screen,
+                transitionSpec={fadeIn(tween(220)) togetherWith fadeOut(tween(160))},
+                label="casino-screen-transition"
+            ){destination->when(destination){
+                "SETTINGS"->SettingsPage(model){screen=beforeUtility}
+                "ROOMS"->RoomsPage(model){screen=beforeUtility}
                 "BLACKJACK"->BlackjackApp(model.game,lobby,{model.refill()})
                 "SLOTS"->SlotsScreen(model,lobby)
                 "SOLITAIRE"->SolitaireScreen(model,lobby)
                 "POKER"->PokerScreen(model,lobby)
+                "CRAPS"->CrapsScreen(model,lobby)
                 else->CasinoFrame(model,"THE CASINO FLOOR",null){
                     Text("CASINO CHAOS",fontSize=32.sp,fontWeight=FontWeight.Black,color=model.room.accent,letterSpacing=2.sp,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth().testTag("casino-title"))
                     Text("A little luck. A lot of bad company.",color=Color.LightGray,fontSize=13.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
@@ -75,7 +85,7 @@ fun GameRoot(model:BlackjackViewModel) {
                     Button(enabled=model.hasSaved,onClick={enter(model.casino.lastGame)},modifier=Modifier.fillMaxWidth()){Text("CONTINUE")}
                     val locked=model.game.inRound||model.game.shuffling
                     if(locked)Text("Your blackjack hand is waiting. Finish it before entering another game.",color=model.room.accent)
-                    val entries=listOf(Triple("BLACKJACK","♠","Your original table • animated dealers"),Triple("SLOTS","7","Themed reels • fixed odds • instant chaos"),Triple("SOLITAIRE","♣","Classic solitaire • draw 1 or 3 • win 100 chips"),Triple("POKER","♦","Texas Hold’em • three distinct rivals"))
+                    val entries=listOf(Triple("BLACKJACK","♠","Your original table • animated dealers"),Triple("SLOTS","7","Themed reels • fixed odds • instant chaos"),Triple("SOLITAIRE","♣","Classic solitaire • drag full stacks"),Triple("POKER","♦","Texas Hold’em • three original rivals"),Triple("CRAPS","⚄","Street dice • real bills • character showdown"))
                     for((name,symbol,detail) in entries) {
                         Card(onClick={enter(name)},enabled=!locked||name=="BLACKJACK",colors=CardDefaults.cardColors(containerColor=Color(0xE516141C)),border=BorderStroke(1.dp,model.room.accent.copy(alpha=.5f)),modifier=Modifier.fillMaxWidth().padding(vertical=4.dp)){
                             Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Text(symbol,color=model.room.accent,fontSize=34.sp,modifier=Modifier.width(50.dp));Column(Modifier.weight(1f)){Text(name,fontWeight=FontWeight.Black,color=Color.White,fontSize=20.sp);Text(detail,color=Color.LightGray,fontSize=12.sp)}}
@@ -85,12 +95,30 @@ fun GameRoot(model:BlackjackViewModel) {
                     TextButton(onClick={if(model.hasSaved)confirmNew=true else {model.startNew();enter("BLACKJACK")}},modifier=Modifier.fillMaxWidth()){Text("START NEW GAME")}
                     Text("Virtual chips only • Free refills • No purchases",color=Color.LightGray,fontSize=12.sp)
                 }
-            }
+            }}
             }
             RoomBorder(model.room,Modifier.safeDrawingPadding())
-            OutlinedButton(onClick={if(screen!="SETTINGS"){beforeSettings=screen;model.save();screen="SETTINGS"}},modifier=Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(end=12.dp).height(46.dp).testTag("settings-button"),colors=ButtonDefaults.outlinedButtonColors(containerColor=Color(0xF019141D))) {Text("⚙ SETTINGS",fontSize=12.sp)}
+            CasinoNavigation(
+                screen=screen,
+                onGames={model.save();screen="LOBBY"},
+                onRooms={if(screen!="ROOMS"){beforeUtility=if(screen=="SETTINGS")"LOBBY" else screen;model.save();screen="ROOMS"}},
+                onSettings={if(screen!="SETTINGS"){beforeUtility=if(screen=="ROOMS")"LOBBY" else screen;model.save();screen="SETTINGS"}},
+                modifier=Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(horizontal=12.dp)
+            )
             }
             if(confirmNew)AlertDialog(onDismissRequest={confirmNew=false},title={Text("Start a fresh casino?")},text={Text("This replaces all saved games and table chips with a new 1,000-chip bankroll.")},confirmButton={TextButton(onClick={model.startNew();confirmNew=false;enter("BLACKJACK")}){Text("START FRESH")}},dismissButton={TextButton(onClick={confirmNew=false}){Text("CANCEL")}})
+        }
+    }
+}
+
+@Composable
+private fun CasinoNavigation(screen:String,onGames:()->Unit,onRooms:()->Unit,onSettings:()->Unit,modifier:Modifier=Modifier){
+    Surface(modifier.fillMaxWidth().height(50.dp),color=Color(0xF019141D),shape=RoundedCornerShape(15.dp),border=BorderStroke(1.dp,LocalRoomStyle.current.accent.copy(alpha=.65f))){
+        Row(Modifier.fillMaxSize().padding(4.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)){
+            fun active(name:String)=when(name){"GAMES"->screen=="LOBBY";else->screen==name}
+            listOf(Triple("GAMES","nav-games",onGames),Triple("ROOMS","nav-rooms",onRooms),Triple("SETTINGS","settings-button",onSettings)).forEach{(label,tag,action)->
+                TextButton(onClick=action,modifier=Modifier.weight(1f).fillMaxHeight().testTag(tag),colors=ButtonDefaults.textButtonColors(containerColor=if(active(label))LocalRoomStyle.current.accent.copy(alpha=.22f) else Color.Transparent,contentColor=if(active(label))Color.White else LocalRoomStyle.current.accent)){Text(label,fontSize=11.sp,fontWeight=FontWeight.Black)}
+            }
         }
     }
 }
@@ -191,11 +219,11 @@ internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
     }
     CasinoFrame(model,"SOLITAIRE",onBack){
         Text("CLASSIC • DRAW ${g.drawCount} • ${g.moves} MOVES",color=model.room.accent,fontSize=12.sp)
-        Text(if(g.won)"YOU CLEARED THE TABLE • +100 CHIPS" else note,color=Color.White,fontSize=13.sp)
+        Text(when{g.won->"YOU CLEARED THE TABLE • +100 CHIPS";g.stuck->"NO MOVES REMAIN • UNDO OR DEAL AGAIN";else->note},color=if(g.stuck)Color(0xFFFFB4A9) else Color.White,fontSize=13.sp,modifier=if(g.stuck)Modifier.testTag("solitaire-stuck") else Modifier)
         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
             OutlinedButton(onClick={model.change{g.draw()};selected=null},enabled=!g.won){Text(if(g.stock.isEmpty())"RECYCLE" else "DRAW (${g.stock.size})")}
             OutlinedButton(onClick={model.change{g.undo()};selected=null},enabled=g.canUndo){Text("UNDO")}
-            TextButton(onClick={val h=g.hint();if(h!=null){selected=h.first;note="Try ${if(h.second>=7)"foundation ${h.second-6}" else "column ${h.second+1}"}."}else note=if(g.stock.isNotEmpty()||g.waste.isNotEmpty())"Try drawing or recycling the stock." else "No available moves. Try undo or a new deal."}){Text("HINT")}
+            TextButton(onClick={val h=g.hint();if(h!=null){selected=h.first;note="Try ${if(h.second>=7)"foundation ${h.second-6}" else "column ${h.second+1}"}."}else note=if(g.stuck)"No moves remain. Undo or deal a new game." else if(g.stock.isNotEmpty()||g.waste.isNotEmpty())"Try drawing or recycling the stock." else "No available moves. Try undo or a new deal."}){Text("HINT")}
         }
         BoxWithConstraints(Modifier.fillMaxWidth()){
         val cardWidth=(maxWidth-24.dp)/7
@@ -240,6 +268,9 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
     var rules by remember{mutableStateOf(false)}
     var raiseTarget by remember(g.hand,g.actor,g.currentBet){mutableIntStateOf(g.currentBet+g.minRaise)}
     LaunchedEffect(g,g.actor,g.active,model.revision){if(g.active&&g.actor>0){delay(1100);model.change{g.botStep()}}}
+    HumanReactionVoice(g.hand,if(g.showdown&&g.seats.isNotEmpty()){
+        if(g.seats[0].expression==3)HumanReaction.FRUSTRATED else HumanReaction.CHEER
+    }else null,model.settings.voices)
     CasinoFrame(model,"POKER",onBack){
         Text("NO-LIMIT TEXAS HOLD’EM • 5 / 10",color=model.room.accent,fontSize=12.sp)
         if(!g.seated){
@@ -254,10 +285,9 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
                         Column(Modifier.padding(7.dp),horizontalAlignment=Alignment.CenterHorizontally){
                             PokerPortrait(p,j,g.actor==i,Modifier.fillMaxWidth().height(92.dp))
                             Text(RoomStyle.entries[(model.room.ordinal+j)%RoomStyle.entries.size].host,color=model.room.accent,fontWeight=FontWeight.Black,fontSize=11.sp,maxLines=2,textAlign=TextAlign.Center,modifier=Modifier.height(32.dp))
-                            Text(p.personality.label,color=Color.LightGray,fontSize=10.sp)
                             Text("${p.stack} chips",color=Color.White,fontSize=12.sp)
-                            Text(if(p.folded)"FOLDED" else p.tell,color=Color.LightGray,fontSize=10.sp,textAlign=TextAlign.Center,maxLines=2,modifier=Modifier.height(28.dp))
-                            if(p.lastAction.isNotEmpty())Text(p.lastAction,color=model.room.accent,fontSize=10.sp,maxLines=1)
+                            val mood=when(p.expression){1->"GRIN";2->"STONE-COLD";3->"FIRED UP";4->"SHOWING OFF";5->"TENSE";else->"WATCHING"}
+                            Text(if(p.folded)"FOLDED" else listOf(mood,p.lastAction).filter{it.isNotEmpty()}.joinToString(" • "),color=if(p.folded)Color.LightGray else model.room.accent,fontSize=9.sp,textAlign=TextAlign.Center,maxLines=1,modifier=Modifier.height(18.dp).testTag("poker-reaction-$i"))
                             if(p.hole.isNotEmpty())Row(horizontalArrangement=Arrangement.spacedBy(2.dp)){p.hole.forEach{CardView(if(g.showdown&&!p.folded)it.toString() else "?",30.dp,42.dp)}}
                         }
                     }
@@ -293,7 +323,7 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
                 Button(onClick={model.change{g.startHand()}},enabled=p.stack>0,modifier=Modifier.fillMaxWidth().testTag("poker-deal")){Text(if(g.hand==0)"DEAL FIRST HAND" else "NEXT HAND")}
                 OutlinedButton(onClick={model.change{model.game.bankroll+=g.cashOut()}},modifier=Modifier.fillMaxWidth()){Text("CASH OUT • ${p.stack} CHIPS")}
             }
-            if(g.log.isNotEmpty())Text(castText(g.log.takeLast(5).joinToString("\n")),color=Color.LightGray,fontSize=11.sp)
+            if(g.log.isNotEmpty())Text(castText(g.log.last()),color=Color.LightGray,fontSize=11.sp,maxLines=1)
         }
         TextButton(onClick={rules=true}){Text("RULES & READING YOUR RIVALS")}
     }
@@ -306,13 +336,21 @@ internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
 private fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifier){
     val room=RoomStyle.entries[(LocalRoomStyle.current.ordinal+index)%RoomStyle.entries.size]
     val context=LocalContext.current
-    val sheet by produceState<ImageBitmap?>(null,room){value=withContext(Dispatchers.Default){decodeDealer(context,room)}}
+    var sheet by remember(room){mutableStateOf<ImageBitmap?>(null)}
+    LaunchedEffect(room){sheet=withContext(Dispatchers.Default){decodeDealer(context,room)}}
     var frame by remember { mutableIntStateOf(0) }
-    LaunchedEffect(p.expression,acting){
+    val motion=remember{Animatable(0f)}
+    LaunchedEffect(p.expression,acting,p.lastAction){
         frame=when(p.expression){1->6;2->0;3->8;4->9;5->1;else->0}
-        if(acting&&p.expression==3){repeat(4){frame=if(it%2==0)10 else 11;delay(240)};frame=8}
+        if(p.expression==3){
+            repeat(2){motion.animateTo(1f,tween(85));motion.animateTo(-1f,tween(85))}
+            motion.animateTo(0f,tween(110))
+            if(acting){repeat(4){frame=if(it%2==0)10 else 11;delay(180)};frame=8}
+        }else if(acting){
+            motion.animateTo(.72f,tween(130));motion.animateTo(0f,spring(dampingRatio=Spring.DampingRatioMediumBouncy))
+        }
     }
-    Box(modifier.testTag("poker-portrait-$index").semantics{contentDescription=room.host;stateDescription=if(sheet==null)"Loading" else "Ready"},contentAlignment=Alignment.Center){
+    Box(modifier.graphicsLayer{rotationZ=motion.value*3.5f;scaleX=1f+abs(motion.value)*.035f;scaleY=scaleX;translationY=-abs(motion.value)*4.dp.toPx()}.testTag("poker-portrait-$index").semantics{contentDescription=room.host;stateDescription=if(sheet==null)"Loading" else "Ready"},contentAlignment=Alignment.Center){
     Canvas(Modifier.fillMaxSize().clipToBounds()){
         if(sheet==null)drawCircle(room.accent.copy(alpha=.4f),size.minDimension*.12f,center,style=Stroke(2.dp.toPx()))
         // Use the very same keyed animation atlas as the blackjack dealer.

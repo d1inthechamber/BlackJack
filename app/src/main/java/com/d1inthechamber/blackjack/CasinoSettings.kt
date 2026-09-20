@@ -15,6 +15,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.*
@@ -34,21 +35,31 @@ internal val LocalCasinoSettings=staticCompositionLocalOf{CasinoSettings()}
 internal fun SettingsPage(model:BlackjackViewModel,onBack:()->Unit){
     val settings=model.settings
     CasinoFrame(model,"SETTINGS",onBack){
-        Text("AUDIO & ATMOSPHERE",color=model.room.accent,fontSize=14.sp)
+        Text("AUDIO & ATMOSPHERE",color=model.room.accent,fontSize=20.sp,modifier=Modifier.testTag("settings-content"))
+        Text("Every switch uses a high-contrast label and saves immediately.",color=Color(0xFFE7E2EA),fontSize=13.sp)
         listOf(Triple("music","BACKGROUND MUSIC",settings.music),Triple("effects","CARD & CHIP SOUNDS",settings.effects),Triple("voices","DEALER VOICES",settings.voices),Triple("ambience","AMBIENCE ANIMATION",settings.ambience)).forEach{(key,title,value)->
-            Surface(color=Color(0xDC161219),shape=RoundedCornerShape(12.dp),modifier=Modifier.fillMaxWidth()){
-                Row(Modifier.padding(horizontal=12.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically){Text(title,Modifier.weight(1f),fontSize=13.sp);Switch(checked=value,onCheckedChange={settings.set(key,it)},modifier=Modifier.semanticsLabel(title))}
+            Surface(color=Color(0xFF17131B),contentColor=Color.White,shape=RoundedCornerShape(12.dp),border=BorderStroke(1.dp,model.room.accent.copy(alpha=.55f)),modifier=Modifier.fillMaxWidth()){
+                Row(Modifier.padding(horizontal=14.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically){Text(title,Modifier.weight(1f),fontSize=14.sp,color=Color.White);Switch(checked=value,onCheckedChange={settings.set(key,it)},modifier=Modifier.semanticsLabel(title))}
             }
         }
-        Text("Dealing motion stays on so every card remains easy to follow.",color=Color.LightGray,fontSize=12.sp)
+        Text("Dealing motion stays on so every card remains easy to follow. Choose Rooms from the main navigation to change the cast and table.",color=Color(0xFFE7E2EA),fontSize=13.sp)
+    }
+}
+
+@Composable
+internal fun RoomsPage(model:BlackjackViewModel,onBack:()->Unit){
+    CasinoFrame(model,"ROOMS",onBack){
         Text("CHOOSE YOUR ROOM",color=model.room.accent,fontSize=20.sp,modifier=Modifier.padding(top=12.dp))
-        Text("Changes the room, dealer, cards, borders and music. Your hands stay saved.",color=Color.LightGray,fontSize=12.sp)
+        Text("Changes the original character, room, cards, border and music. Every game stays saved.",color=Color(0xFFE7E2EA),fontSize=13.sp,modifier=Modifier.testTag("rooms-content"))
         RoomStyle.entries.forEach{room->
-            Card(onClick={model.selectRoom(room)},border=BorderStroke(if(room==model.room)3.dp else 1.dp,room.accent),modifier=Modifier.fillMaxWidth()){
+            Card(onClick={model.selectRoom(room)},border=BorderStroke(if(room==model.room)3.dp else 1.dp,room.accent),colors=CardDefaults.cardColors(containerColor=Color(0xFF17131B)),modifier=Modifier.fillMaxWidth()){
                 Box(Modifier.fillMaxWidth().height(120.dp)){
                     Image(painterResource(room.background),null,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.45f)))
-                    Text(room.title+if(room==model.room)" ✓" else "",color=room.accent,fontSize=22.sp,modifier=Modifier.align(Alignment.CenterStart).padding(16.dp))
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.58f)))
+                    Column(Modifier.align(Alignment.CenterStart).padding(16.dp)){
+                        Text(room.title+if(room==model.room)" ✓" else "",color=room.accent,fontSize=22.sp)
+                        Text(room.host,color=Color.White,fontSize=14.sp)
+                    }
                     room.cardBack?.let{Image(painterResource(it),null,Modifier.align(Alignment.CenterEnd).padding(12.dp).size(48.dp,72.dp))}
                 }
             }
