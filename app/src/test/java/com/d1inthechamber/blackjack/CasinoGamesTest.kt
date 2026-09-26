@@ -39,6 +39,24 @@ class CasinoGamesTest {
         g.columns.forEach{it.clear()};g.waste.add(Card("K","♠"))
         assertFalse(g.stuck);assertTrue(g.hasAvailableMove())
     }
+    @Test fun drawThreeDoesNotMistakeAnUnreachableAceForAnAvailableMove(){
+        val g=SolitaireGame(3)
+        g.stock=mutableListOf(Card("3","♠"),Card("A","♥"),Card("4","♠"))
+        g.waste.clear();g.foundations.forEach{it.clear()}
+        g.columns=MutableList(7){mutableListOf(Card("2","♠"))};g.hidden=MutableList(7){0}
+        val snapshot=g.snapshot()
+        assertTrue(g.stuck)
+        assertEquals(snapshot,g.snapshot())
+        g.stock.add(Card("A","♣"))
+        assertFalse(g.stuck)
+    }
+    @Test fun movingAnEntireKingStackBetweenEmptyColumnsDoesNotHideADeadDeal(){
+        val g=SolitaireGame()
+        g.stock.clear();g.waste.clear();g.foundations.forEach{it.clear()}
+        g.columns=MutableList(7){mutableListOf()};g.hidden=MutableList(7){0}
+        g.columns[0].add(Card("K","♠"))
+        assertTrue(g.stuck)
+    }
     @Test fun evaluatorOrdersCategoriesAndHandlesWheelAndBoardTies(){
         val examples=listOf("A♠ J♦ 9♥ 7♣ 2♠","A♠ A♦ 9♥ 7♣ 2♠","A♠ A♦ 9♥ 9♣ 2♠","A♠ A♦ A♥ 7♣ 2♠","A♠ 2♦ 3♥ 4♣ 5♠","A♠ J♠ 9♠ 7♠ 2♠","A♠ A♦ A♥ 7♣ 7♠","A♠ A♦ A♥ A♣ 2♠","9♠ 10♠ J♠ Q♠ K♠")
         val ranks=examples.map{pokerRank(cards(it))};assertTrue(ranks.zipWithNext().all{it.first<it.second})

@@ -1,6 +1,17 @@
-# Casino Chaos 3.3
+# Casino Chaos 3.4
 
 Expands Royal Felt / BlackJack into a five-game, seven-room offline casino. Package ID and development signing key remain unchanged for sideload updates. This is a development APK, not a Play Store production release.
+
+## 3.4 artwork and animation repair
+
+- Packages the user's tattooed hand cutouts, Trump virtual banknote, worn neon alley, and seven-room slot emblem atlas. Source IDs and checksums are in `art/casino-chaos/approved-v34-assets.json`. Packaging only resizes and encodes the supplied images; all existing character artwork is retained.
+- Street craps always uses the street setting and displays the current original room character. Tapping the hand shakes and throws the dice. Both wagers appear before the throw. The pot stays centered through the point, the winning hand reaches and grips it, then hand and bills travel together to that player's edge.
+- Slots use the approved painted symbols, dark reel windows and continuous reel travel that slows onto the already saved result. No odds or payout changes.
+- Craps adapts to a side-by-side landscape layout. Navigation and content share the same safe screen area so controls do not overlap the system bars.
+- Wallet, casino state and craps pot are now written in one atomic snapshot. Existing v3.2/v3.3 archives and the craps sidecar are read on migration. Saving or resuming a decided hand never re-awards the payout.
+- Solitaire retains stack dragging, draw one/three, undo and hints. Dead-deal checks now consider the cards actually reachable by drawing three and ignore shifting an entire king stack between empty columns.
+
+The build gates include lint, rules and animation tests, migration and payout persistence checks, packaged-image transparency checks, phone screenshots for all seven slot themes and both craps collectors, and folded/unfolded/landscape screenshots.
 
 - Blackjack retains its rules, dealer sprites, sounds, flights, and legacy save migration.
 - Slots: one payline, independent 20-stop reels, weights 6/5/4/3/2, triple payouts 5/8/15/30/60 times stake. Exactly two lowest symbols pay 2 times stake. Exhaustive theoretical return 91.925%. Outcomes are saved with the wallet before cosmetic reel animation, so closing cannot replay a wager.

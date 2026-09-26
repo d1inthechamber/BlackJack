@@ -1,0 +1,46 @@
+[
+  {
+    "source": "Eight tattooed hand poses, transparent sprite atlas.png",
+    "library_id": "libfile_d1964b279bc88191af453bdad83cc480",
+    "source_sha256": "d3834f30161be38fedd9ee8cef821fd36f272996f6e92b7ab2071ff08ea95a8c",
+    "packaged": "craps_hands.webp",
+    "size": [
+      1152,
+      768
+    ],
+    "sha256": "a44927c2c4f468e4a8e13fd5bb1b1b251a4865af4a5597a36281e493747bbd06"
+  },
+  {
+    "source": "Casino Chaos virtual dollar banknote.png",
+    "library_id": "libfile_881d68ed0b708191a4228373ab0e55ae",
+    "source_sha256": "302dae0a04f30fd89f9f28a50433cb109a32f89a3bd2a48cd58882aabee17863",
+    "packaged": "craps_banknote.webp",
+    "size": [
+      1128,
+      502
+    ],
+    "sha256": "0447c82bdc7c4de43fe8a2bd055462060d22f82d329c6e20e9ebdeebd0d800f5"
+  },
+  {
+    "source": "Worn Neon Casino Alley.png",
+    "library_id": "libfile_7d66012b6b5481919f2eef7ced89eb47",
+    "source_sha256": "1bc4e796bc102bad3f4658272c403883d1210ebca821554cc21c98fdcfe9b160",
+    "packaged": "craps_alley.webp",
+    "size": [
+      768,
+      1152
+    ],
+    "sha256": "6164747c72af24ea9fb5f06b8e2353453988ad3b0f08d7412dcd0f250e64e6d0"
+  },
+  {
+    "source": "Dark Vegas Slot Emblem Atlas.png",
+    "library_id": "libfile_24879e87d210819183714bab3a76c8f2",
+    "source_sha256": "d34cf70062f91be30d7323d0f20c87a36297b56573e338cd383588944a28bcef",
+    "packaged": "slot_symbols.webp",
+    "size": [
+      1060,
+      1484
+    ],
+    "sha256": "853617ba97e18e8488c24460227d6284186f95edde6518a5e898d80a02a5cd05"
+  }
+]
