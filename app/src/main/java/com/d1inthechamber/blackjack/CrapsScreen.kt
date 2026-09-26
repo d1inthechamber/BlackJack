@@ -161,9 +161,10 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         val travel = maxHeight * .63f + handHeight
         val billDistance = if (collecting) collectionBillDistance(collection) else 0f
         val handDistance = collectionHandDistance(collection)
+        val opponentHeight = (maxHeight * .25f).coerceAtMost(100.dp)
         Column(Modifier.align(Alignment.TopCenter).padding(top = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            CrapsOpponent(model.room, game.winner, Modifier.size(112.dp, (maxHeight * .25f).coerceAtMost(100.dp)))
+            CrapsOpponent(model.room, game.winner, Modifier.size(112.dp, opponentHeight))
             Text(model.room.host.uppercase(), color = Color(0xFFF4D99D), fontSize = 11.sp,
                 fontWeight = FontWeight.Black, modifier = Modifier.background(Color.Black.copy(alpha = .72f),
                     RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
