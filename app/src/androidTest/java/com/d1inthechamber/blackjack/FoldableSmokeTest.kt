@@ -30,7 +30,14 @@ class FoldableSmokeTest {
         assertTrue("$tag must remain vertically visible",item.top>=root.top&&item.bottom<=root.bottom)
     }
     private fun capture(name:String){
+        rule.waitUntil(15000){
+            rule.onAllNodes(hasTestTag("craps-opponent") and SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready"))
+                .fetchSemanticsNodes().size==1
+        }
         rule.waitForIdle();clearLauncherDialog()
+        // Compose can be idle before the emulator compositor presents its frame.
+        Thread.sleep(800)
         val bitmap=automation.takeScreenshot()
         val file=File(rule.activity.getExternalFilesDir(null),"fold-$name.png")
         file.outputStream().use{bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()

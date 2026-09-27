@@ -34,6 +34,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clipToBounds
@@ -49,6 +51,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.abs
+import kotlin.math.floor
 
 @Composable
 fun GameRoot(model:BlackjackViewModel) {
@@ -64,7 +67,7 @@ fun GameRoot(model:BlackjackViewModel) {
             val lobby={model.save();screen="LOBBY"}
             val enter:(String)->Unit={model.enter(it);screen=it}
             BackHandler(screen!="LOBBY"){if(screen=="SETTINGS"||screen=="ROOMS")screen=beforeUtility else lobby()}
-            Box(Modifier.fillMaxSize().background(Color(0xFF100D14))) {
+            Box(Modifier.fillMaxSize().background(Color(0xFF100D14)).safeDrawingPadding()) {
             Box(Modifier.fillMaxSize().padding(top=58.dp)) {
             if(!foreground)Box(Modifier.fillMaxSize().background(Color.Black)) else AnimatedContent(
                 targetState=screen,
@@ -97,13 +100,13 @@ fun GameRoot(model:BlackjackViewModel) {
                 }
             }}
             }
-            RoomBorder(model.room,Modifier.safeDrawingPadding())
+            RoomBorder(model.room)
             CasinoNavigation(
                 screen=screen,
                 onGames={model.save();screen="LOBBY"},
                 onRooms={if(screen!="ROOMS"){beforeUtility=if(screen=="SETTINGS")"LOBBY" else screen;model.save();screen="ROOMS"}},
                 onSettings={if(screen!="SETTINGS"){beforeUtility=if(screen=="ROOMS")"LOBBY" else screen;model.save();screen="SETTINGS"}},
-                modifier=Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(horizontal=12.dp)
+                modifier=Modifier.align(Alignment.TopCenter).padding(horizontal=12.dp)
             )
             }
             if(confirmNew)AlertDialog(onDismissRequest={confirmNew=false},title={Text("Start a fresh casino?")},text={Text("This replaces all saved games and table chips with a new 1,000-chip bankroll.")},confirmButton={TextButton(onClick={model.startNew();confirmNew=false;enter("BLACKJACK")}){Text("START FRESH")}},dismissButton={TextButton(onClick={confirmNew=false}){Text("CANCEL")}})
@@ -129,7 +132,7 @@ internal fun CasinoFrame(model:BlackjackViewModel,title:String,onBack:(()->Unit)
     Box(Modifier.fillMaxSize()){
         Image(painterResource(model.room.background),null,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.65f)))
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=16.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
+        Column(Modifier.align(Alignment.TopCenter).widthIn(max=860.dp).fillMaxSize().padding(horizontal=16.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                 if(onBack!=null)TextButton(onClick=onBack){Text(if(title=="SETTINGS")"BACK" else "LOBBY")}
                 Text("${formatChips(model.game.bankroll)} CHIPS",Modifier.weight(1f),fontSize=15.sp,color=model.room.accent,fontWeight=FontWeight.Bold)
@@ -144,7 +147,7 @@ internal fun CasinoFrame(model:BlackjackViewModel,title:String,onBack:(()->Unit)
     }
 }
 internal fun slotSymbols(room:RoomStyle):List<String> = when(room){
-    RoomStyle.VEGAS->listOf("CHERRY","BAR","BELL","STAR","7")
+    RoomStyle.VEGAS->listOf("CHERRY","CHIPS","BELL","STAR","7")
     RoomStyle.CARNIVAL->listOf("TICKET","MOON","MASK","SKULL","JOKER")
     RoomStyle.EGYPT->listOf("ANKH","SCARAB","EYE","COBRA","PHARAOH")
     RoomStyle.IRON->listOf("BOLT","GEAR","COAL","STEAM","GOLD")
@@ -156,40 +159,55 @@ internal fun slotSymbols(room:RoomStyle):List<String> = when(room){
 internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
     val game=model.casino.slots
     var spinning by remember{mutableStateOf(false)}
-    var tick by remember{mutableIntStateOf(0)}
-    val reelTravel=remember{Animatable(0f)}
-    var settled by remember{mutableIntStateOf(3)}
+    val reelPositions=remember(game){List(3){Animatable(game.reels[it].toFloat())}}
     var help by remember{mutableStateOf(false)}
     val symbols=slotSymbols(model.room)
-    LaunchedEffect(spinning){if(spinning){repeat(28){settled=when{it<14->0;it<21->1;else->2};reelTravel.snapTo(0f);reelTravel.animateTo(1f,tween(75,easing=LinearEasing));tick++};settled=3;spinning=false}}
-    val pull:()->Unit={if(!spinning&&model.game.bankroll>=game.bet){model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};settled=0;spinning=true}}
+    LaunchedEffect(spinning){
+        if(spinning){
+            coroutineScope {
+                reelPositions.forEachIndexed { i, position ->
+                    launch {
+                        val start=position.value.toInt()
+                        val target=start+20+i*5+(game.reels[i]-start%5+5)%5
+                        position.animateTo(target.toFloat(),tween(1700+i*300,easing=CubicBezierEasing(.10f,.55f,.18f,1f)))
+                        position.snapTo(game.reels[i].toFloat())
+                    }
+                }
+            }
+            spinning=false
+        }
+    }
+    val pull:()->Unit={if(!spinning&&model.game.bankroll>=game.bet){model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};spinning=true}}
     CasinoFrame(model,"CHAOS SLOTS",onBack){
         Text("${model.room.title} • ONE PAYLINE",color=model.room.accent)
-        Row(Modifier.fillMaxWidth().padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
+        Row(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically){
         Surface(color=Color(0xFF302019),shape=RoundedCornerShape(topStart=36.dp,topEnd=36.dp,bottomStart=12.dp,bottomEnd=12.dp),border=BorderStroke(4.dp,model.room.accent),modifier=Modifier.weight(1f)){
             Column(Modifier.background(Brush.verticalGradient(listOf(Color(0xFF463329),Color(0xFF100F15),Color(0xFF35251F)))).padding(10.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                Text("★ CASINO CHAOS ★",color=model.room.accent,fontSize=18.sp,fontWeight=FontWeight.Black)
+                Text("CASINO CHAOS",color=model.room.accent,fontSize=20.sp,fontWeight=FontWeight.Black,letterSpacing=1.sp)
                 Text("ONE ARM BANDIT",color=Color(0xFFF0D7A0),fontSize=10.sp,letterSpacing=2.sp)
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth().border(4.dp,Color(0xFFB4AAA0),RoundedCornerShape(8.dp)).padding(6.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)){
-                    repeat(3){i->val n=if(spinning&&i>=settled)(tick+i*2)%5 else game.reels[i]
-                        Box(Modifier.weight(1f).height(174.dp).testTag("slot-reel-$i").clipToBounds().background(Color(0xFFFFF0D7))){
-                            Column(Modifier.fillMaxWidth().offset(y=if(spinning&&i>=settled)(-58f*reelTravel.value).dp else 0.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                                repeat(4){cell->Box(Modifier.fillMaxWidth().height(58.dp),contentAlignment=Alignment.Center){SlotEmblem((n+cell+4)%5,model.room,Modifier.size(51.dp))}}
+                    repeat(3){i->
+                        val position=reelPositions[i].value
+                        val n=floor(position).toInt()
+                        Box(Modifier.weight(1f).height(204.dp).testTag("slot-reel-$i").clipToBounds().background(Color(0xFF211B19))
+                            .semantics{stateDescription=if(spinning)"Spinning" else symbols[game.reels[i]]}){
+                            repeat(4){cell->
+                                Box(Modifier.fillMaxWidth().offset(y=(68f*(cell-(position-floor(position)))).dp).height(68.dp),contentAlignment=Alignment.Center){SlotEmblem((n+cell+4)%5,model.room,Modifier.size(64.dp))}
                             }
-                            Box(Modifier.fillMaxWidth().offset(y=58.dp).height(58.dp).border(1.dp,Color(0xFFA93338)))
-                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha=.55f),Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.55f)))))
+                            Box(Modifier.fillMaxWidth().offset(y=68.dp).height(68.dp).border(1.dp,model.room.accent.copy(alpha=.8f)))
+                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha=.80f),Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.80f)))))
                         }
                     }
                 }
                 Text("◀  WIN LINE  ▶",color=model.room.accent,fontSize=12.sp)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth().background(Color(0xFF090909),RoundedCornerShape(5.dp)).padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){
                     Text("BET ${game.bet}",color=Color(0xFFEDB958),fontSize=12.sp)
                     Text(if(spinning)"WIN —" else "WIN ${game.returned}",color=Color(0xFFEDB958),fontSize=12.sp)
                 }
-                Spacer(Modifier.height(12.dp))
-                Box(Modifier.fillMaxWidth().height(38.dp).border(3.dp,Color(0xFF797575),RoundedCornerShape(9.dp)).background(Color(0xFF09090B)),contentAlignment=Alignment.Center){Text("COIN RETURN",color=Color.Gray,fontSize=9.sp)}
+                Spacer(Modifier.height(8.dp))
+                Box(Modifier.fillMaxWidth().height(28.dp).border(3.dp,Color(0xFF797575),RoundedCornerShape(9.dp)).background(Color(0xFF09090B)),contentAlignment=Alignment.Center){Text("COIN RETURN",color=Color.Gray,fontSize=9.sp)}
             }
         }
         BanditLever(spinning,!spinning&&model.game.bankroll>=game.bet,pull,Modifier.width(46.dp).height(290.dp))
@@ -219,7 +237,7 @@ internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
     }
     CasinoFrame(model,"SOLITAIRE",onBack){
         Text("CLASSIC • DRAW ${g.drawCount} • ${g.moves} MOVES",color=model.room.accent,fontSize=12.sp)
-        Text(when{g.won->"YOU CLEARED THE TABLE • +100 CHIPS";g.stuck->"NO MOVES REMAIN • UNDO OR DEAL AGAIN";else->note},color=if(g.stuck)Color(0xFFFFB4A9) else Color.White,fontSize=13.sp,modifier=if(g.stuck)Modifier.testTag("solitaire-stuck") else Modifier)
+        Text(when{g.won->"YOU CLEARED THE TABLE • +100 CHIPS";g.stuck->"DEAL LOST • NO MOVES REMAIN • UNDO OR DEAL AGAIN";else->note},color=if(g.stuck)Color(0xFFFFB4A9) else Color.White,fontSize=13.sp,modifier=if(g.stuck)Modifier.testTag("solitaire-stuck") else Modifier)
         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
             OutlinedButton(onClick={model.change{g.draw()};selected=null},enabled=!g.won){Text(if(g.stock.isEmpty())"RECYCLE" else "DRAW (${g.stock.size})")}
             OutlinedButton(onClick={model.change{g.undo()};selected=null},enabled=g.canUndo){Text("UNDO")}

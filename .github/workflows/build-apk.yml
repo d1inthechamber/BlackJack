@@ -2,7 +2,7 @@ name: Build Casino Chaos APK
 
 on:
   push:
-    branches: [main, codex/casino-chaos-v3.3]
+    branches: [main, codex/casino-chaos-v3.4]
   workflow_dispatch:
 
 permissions:
@@ -38,12 +38,12 @@ jobs:
           test -n "$apksigner_path"
           "$apksigner_path" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Stage candidate APK
-        run: cp app/build/outputs/apk/release/app-release.apk casino-chaos-v3.3-candidate.apk
+        run: cp app/build/outputs/apk/release/app-release.apk casino-chaos-v3.4-candidate.apk
       - name: Upload candidate APK
         uses: actions/upload-artifact@v4
         with:
           name: signed-release-candidate
-          path: casino-chaos-v3.3-candidate.apk
+          path: casino-chaos-v3.4-candidate.apk
           if-no-files-found: error
           retention-days: 7
       - name: Upload validation reports
@@ -83,15 +83,7 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          script: |
-            test_status=0
-            gradle :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.d1inthechamber.blackjack.CasinoSmokeTest,com.d1inthechamber.blackjack.TableSmokeTest,com.d1inthechamber.blackjack.UpgradeSmokeTest || test_status=$?
-            mkdir -p screenshots
-            for name in portrait-hit landscape-hit; do adb pull "/sdcard/Download/royal-felt-$name.png" "screenshots/$name.png" || true; done
-            for room in carnival egypt iron west punk green; do adb pull "/sdcard/Download/royal-felt-room-$room.png" "screenshots/room-$room.png" || true; done
-            for game in lobby slots solitaire poker settings rooms craps craps-win; do adb pull "/sdcard/Download/chaos-$game.png" "screenshots/chaos-$game.png" || true; done
-            adb logcat -d -s AndroidRuntime > android-runtime.log
-            exit $test_status
+          script: bash .github/run-device-tests.sh phone
       - name: Upload phone screenshots and reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -130,13 +122,7 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           disable-animations: true
-          script: |
-            test_status=0
-            gradle :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.d1inthechamber.blackjack.FoldableSmokeTest || test_status=$?
-            mkdir -p foldable-screenshots
-            for mode in unfolded folded landscape; do adb pull "/sdcard/Download/fold-$mode.png" "foldable-screenshots/$mode.png" || true; done
-            adb logcat -d -s AndroidRuntime > foldable-runtime.log
-            exit $test_status
+          script: bash .github/run-device-tests.sh fold
       - name: Upload foldable screenshots and reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -158,11 +144,11 @@ jobs:
         with:
           name: signed-release-candidate
       - name: Name install file
-        run: mv casino-chaos-v3.3-candidate.apk casino-chaos-v3.3.apk
+        run: mv casino-chaos-v3.4-candidate.apk casino-chaos-v3.4.apk
       - name: Upload tested APK
         uses: actions/upload-artifact@v4
         with:
-          name: casino-chaos-apk-v3.3
-          path: casino-chaos-v3.3.apk
+          name: casino-chaos-apk-v3.4
+          path: casino-chaos-v3.4.apk
           if-no-files-found: error
           retention-days: 30

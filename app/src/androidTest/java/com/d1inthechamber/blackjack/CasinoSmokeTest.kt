@@ -131,9 +131,31 @@ class CasinoSmokeTest {
             }
             rule.mainClock.advanceTimeByFrame();rule.waitForIdle()
             rule.onNodeWithTag("craps-collector").assertExists()
-            rule.mainClock.advanceTimeBy(260);rule.waitForIdle()
+            rule.mainClock.advanceTimeBy(1100);rule.waitForIdle()
             shot("craps-win")
+            rule.mainClock.advanceTimeBy(320);rule.waitForIdle()
+            shot("craps-player-pull")
+            rule.mainClock.advanceTimeBy(900);rule.waitForIdle()
+            rule.runOnUiThread { m.shootCraps(1,1) }
+            rule.mainClock.advanceTimeByFrame()
+            rule.mainClock.advanceTimeBy(1420);rule.waitForIdle()
+            rule.onNodeWithContentDescription("Opponent hand collecting the money").assertExists()
+            shot("craps-opponent-pull")
         }finally{rule.mainClock.autoAdvance=true}
+    }
+
+    @Test fun everyRoomUsesItsApprovedSlotArtwork() {
+        reset();rule.onNodeWithText("SLOTS").performScrollTo().performClick()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        for(room in RoomStyle.entries) {
+            rule.runOnUiThread { m.selectRoom(room) }
+            rule.onNodeWithTag("slot-reel-1").performScrollTo()
+            rule.onAllNodesWithContentDescription(room.title + ": " + slotSymbols(room)[1]).onFirst().assertExists()
+            val root=rule.onRoot().fetchSemanticsNode().boundsInRoot
+            val spin=rule.onNodeWithTag("slot-spin").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            assertTrue("Spin must fit below the reels",spin.top>=root.top && spin.bottom<=root.bottom)
+            shot("slots-" + room.name.lowercase())
+        }
     }
 
 }

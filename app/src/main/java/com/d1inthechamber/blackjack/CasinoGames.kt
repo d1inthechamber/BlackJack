@@ -99,11 +99,22 @@ internal fun SolitaireGame.hasAvailableMove():Boolean {
     if(waste.isNotEmpty())picks.add(SolitairePick(-1,waste.lastIndex))
     for(c in 0..6)for(i in hidden[c] until columns[c].size)picks.add(SolitairePick(c,i))
     for(f in 7..10)if(foundations[f-7].isNotEmpty())picks.add(SolitairePick(f,foundations[f-7].lastIndex))
-    if(picks.any{p->(0..10).any{d->legal(p,d)}})return true
-    // With unlimited recycling, every remaining stock/waste card is reachable on a
-    // later pass, so do not report a dead deal while drawing can still expose a move.
-    return (stock+waste).distinct().any{card->
+    if(picks.any{p->(0..10).any{d->legal(p,d) &&
+        !(d<7&&columns[d].isEmpty()&&p.pile in 0..6&&p.index==0)}})return true
+    fun playable(card:Card)=
         (0..6).any{d->columns[d].lastOrNull()?.let{it.red!=card.red&&it.number==card.number+1}?: (card.number==13)} ||
             (7..10).any{d->foundations[d-7].lastOrNull()?.let{it.suit==card.suit&&card.number==it.number+1}?: (card.number==1)}
+    // Draw-three does not expose every card. Simulate draws/recycles until the
+    // stock and waste repeat, without mutating the game or its undo history.
+    var remaining=stock.toMutableList()
+    val exposed=waste.toMutableList()
+    val seen=mutableSetOf<Pair<List<Card>,List<Card>>>()
+    while(seen.add(remaining.toList() to exposed.toList())){
+        if(exposed.lastOrNull()?.let{playable(it)}==true)return true
+        if(remaining.isEmpty()){
+            if(exposed.isEmpty())break
+            remaining=exposed.reversed().toMutableList();exposed.clear()
+        }else repeat(minOf(drawCount,remaining.size)){exposed.add(remaining.removeAt(remaining.lastIndex))}
     }
+    return false
 }

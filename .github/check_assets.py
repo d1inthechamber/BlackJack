@@ -1,7 +1,16 @@
 from pathlib import Path
 import struct
+import hashlib
+import json
 
 root = Path(__file__).resolve().parents[1] / "app/src/main/res"
+manifest = json.loads((root.parents[3] / "art/casino-chaos/approved-v34-assets.json").read_text())
+assert {item["packaged"] for item in manifest} == {
+    "craps_hands.webp", "craps_banknote.webp", "craps_alley.webp", "slot_symbols.webp"
+}, "All four approved v3.4 assets must be present"
+for item in manifest:
+    path = root / "drawable-nodpi" / item["packaged"]
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == item["sha256"], f"Wrong or truncated approved artwork: {path.name}"
 for path in root.glob("drawable-nodpi/*.webp"):
     data = path.read_bytes()
     assert len(data) > 20 and data[:4] == b"RIFF" and data[8:12] == b"WEBP", f"Invalid artwork: {path.name}"
