@@ -151,6 +151,9 @@ class CasinoSmokeTest {
             rule.runOnUiThread { m.selectRoom(room) }
             rule.onNodeWithTag("slot-reel-1").performScrollTo()
             rule.onAllNodesWithContentDescription(room.title + ": " + slotSymbols(room)[1]).onFirst().assertExists()
+            val root=rule.onRoot().fetchSemanticsNode().boundsInRoot
+            val spin=rule.onNodeWithTag("slot-spin").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            assertTrue("Spin must fit below the reels",spin.top>=root.top && spin.bottom<=root.bottom)
             shot("slots-" + room.name.lowercase())
         }
     }

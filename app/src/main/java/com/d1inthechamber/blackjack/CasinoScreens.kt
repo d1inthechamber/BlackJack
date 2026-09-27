@@ -180,34 +180,34 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
     val pull:()->Unit={if(!spinning&&model.game.bankroll>=game.bet){model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};spinning=true}}
     CasinoFrame(model,"CHAOS SLOTS",onBack){
         Text("${model.room.title} • ONE PAYLINE",color=model.room.accent)
-        Row(Modifier.fillMaxWidth().padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
+        Row(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically){
         Surface(color=Color(0xFF302019),shape=RoundedCornerShape(topStart=36.dp,topEnd=36.dp,bottomStart=12.dp,bottomEnd=12.dp),border=BorderStroke(4.dp,model.room.accent),modifier=Modifier.weight(1f)){
             Column(Modifier.background(Brush.verticalGradient(listOf(Color(0xFF463329),Color(0xFF100F15),Color(0xFF35251F)))).padding(10.dp),horizontalAlignment=Alignment.CenterHorizontally){
                 Text("CASINO CHAOS",color=model.room.accent,fontSize=20.sp,fontWeight=FontWeight.Black,letterSpacing=1.sp)
                 Text("ONE ARM BANDIT",color=Color(0xFFF0D7A0),fontSize=10.sp,letterSpacing=2.sp)
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth().border(4.dp,Color(0xFFB4AAA0),RoundedCornerShape(8.dp)).padding(6.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)){
                     repeat(3){i->
                         val position=reelPositions[i].value
                         val n=floor(position).toInt()
-                        Box(Modifier.weight(1f).height(222.dp).testTag("slot-reel-$i").clipToBounds().background(Color(0xFF211B19))
+                        Box(Modifier.weight(1f).height(204.dp).testTag("slot-reel-$i").clipToBounds().background(Color(0xFF211B19))
                             .semantics{stateDescription=if(spinning)"Spinning" else symbols[game.reels[i]]}){
-                            Column(Modifier.fillMaxWidth().offset(y=(-74f*(position-floor(position))).dp),horizontalAlignment=Alignment.CenterHorizontally){
-                                repeat(4){cell->Box(Modifier.fillMaxWidth().height(74.dp),contentAlignment=Alignment.Center){SlotEmblem((n+cell+4)%5,model.room,Modifier.size(70.dp))}}
+                            repeat(4){cell->
+                                Box(Modifier.fillMaxWidth().offset(y=(68f*(cell-(position-floor(position)))).dp).height(68.dp),contentAlignment=Alignment.Center){SlotEmblem((n+cell+4)%5,model.room,Modifier.size(64.dp))}
                             }
-                            Box(Modifier.fillMaxWidth().offset(y=74.dp).height(74.dp).border(1.dp,model.room.accent.copy(alpha=.8f)))
+                            Box(Modifier.fillMaxWidth().offset(y=68.dp).height(68.dp).border(1.dp,model.room.accent.copy(alpha=.8f)))
                             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha=.80f),Color.Transparent,Color.Transparent,Color.Black.copy(alpha=.80f)))))
                         }
                     }
                 }
                 Text("◀  WIN LINE  ▶",color=model.room.accent,fontSize=12.sp)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth().background(Color(0xFF090909),RoundedCornerShape(5.dp)).padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){
                     Text("BET ${game.bet}",color=Color(0xFFEDB958),fontSize=12.sp)
                     Text(if(spinning)"WIN —" else "WIN ${game.returned}",color=Color(0xFFEDB958),fontSize=12.sp)
                 }
-                Spacer(Modifier.height(12.dp))
-                Box(Modifier.fillMaxWidth().height(38.dp).border(3.dp,Color(0xFF797575),RoundedCornerShape(9.dp)).background(Color(0xFF09090B)),contentAlignment=Alignment.Center){Text("COIN RETURN",color=Color.Gray,fontSize=9.sp)}
+                Spacer(Modifier.height(8.dp))
+                Box(Modifier.fillMaxWidth().height(28.dp).border(3.dp,Color(0xFF797575),RoundedCornerShape(9.dp)).background(Color(0xFF09090B)),contentAlignment=Alignment.Center){Text("COIN RETURN",color=Color.Gray,fontSize=9.sp)}
             }
         }
         BanditLever(spinning,!spinning&&model.game.bankroll>=game.bet,pull,Modifier.width(46.dp).height(290.dp))

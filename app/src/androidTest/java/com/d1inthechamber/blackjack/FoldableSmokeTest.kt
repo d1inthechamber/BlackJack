@@ -31,6 +31,8 @@ class FoldableSmokeTest {
     }
     private fun capture(name:String){
         rule.waitForIdle();clearLauncherDialog()
+        // Compose can be idle before the emulator compositor presents its frame.
+        Thread.sleep(800)
         val bitmap=automation.takeScreenshot()
         val file=File(rule.activity.getExternalFilesDir(null),"fold-$name.png")
         file.outputStream().use{bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
