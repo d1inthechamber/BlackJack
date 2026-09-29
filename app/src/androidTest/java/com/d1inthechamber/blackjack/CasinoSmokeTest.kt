@@ -49,8 +49,9 @@ class CasinoSmokeTest {
         rule.onNodeWithText("POT $15").assertExists()
         rule.waitUntil(timeoutMillis=15000){rule.onAllNodes(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==3}
         rule.mainClock.advanceTimeByFrame();rule.waitForIdle()
-        (0..2).forEach{rule.onNodeWithTag("poker-portrait-$it").assertIsDisplayed()}
-        rule.onNodeWithText("LOBBY").assertIsDisplayed();shot("poker")
+        shot("poker")
+        (0..2).forEach{rule.onNodeWithTag("poker-portrait-$it").assertExists().assertIsDisplayed()}
+        rule.onNodeWithText("LOBBY").assertIsDisplayed()
         rule.runOnIdle{assertTrue(m.casino.poker.active);assertEquals(0,m.casino.poker.actor)}
         rule.activityRule.scenario.recreate();rule.onNodeWithTag("poker-table").assertExists()
     }
