@@ -142,6 +142,10 @@ class CasinoSmokeTest {
             rule.mainClock.advanceTimeBy(1420);rule.waitForIdle()
             rule.onNodeWithContentDescription("Opponent hand collecting the money").assertExists()
             shot("craps-opponent-pull")
+            rule.mainClock.advanceTimeBy(440);rule.waitForIdle()
+            rule.onNodeWithTag("craps-collector").assertIsDisplayed()
+            rule.onNodeWithTag("craps-money-pile").assertIsDisplayed()
+            shot("craps-opponent-receive")
         }finally{rule.mainClock.autoAdvance=true}
     }
 

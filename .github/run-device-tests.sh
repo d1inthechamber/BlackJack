@@ -19,7 +19,7 @@ pull_shot() {
 if [[ "$mode" == "phone" ]]; then
   for name in portrait-hit landscape-hit; do pull_shot "royal-felt-$name" "$name"; done
   for room in carnival egypt iron west punk green; do pull_shot "royal-felt-room-$room" "room-$room"; done
-  for game in lobby slots solitaire poker settings rooms craps craps-win craps-player-pull craps-opponent-pull slots-vegas slots-carnival slots-egypt slots-iron slots-west slots-punk slots-green solitaire-draw-three craps-hand-vegas craps-hand-carnival craps-hand-egypt craps-hand-iron craps-hand-west craps-hand-punk craps-hand-green; do
+  for game in lobby slots solitaire poker settings rooms craps craps-win craps-player-pull craps-opponent-pull craps-opponent-receive slots-vegas slots-carnival slots-egypt slots-iron slots-west slots-punk slots-green solitaire-draw-three craps-hand-vegas craps-hand-carnival craps-hand-egypt craps-hand-iron craps-hand-west craps-hand-punk craps-hand-green; do
     pull_shot "chaos-$game" "chaos-$game"
   done
   adb logcat -d -s AndroidRuntime > android-runtime.log || true

@@ -163,10 +163,15 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         val handWidth = minOf(maxWidth * .42f, maxHeight * .44f)
         val handHeight = handWidth * 4f / 3f
         val potY = maxHeight * .13f
-        val travel = maxHeight * .63f + handHeight
+        val opponentHeight = (maxHeight * .25f).coerceAtMost(100.dp)
+        // The opponent reaches from the lower torso and receives the pot there.
+        // Perspective shrinks the hand and bills together as they move away.
+        val travel = if (direction < 0) maxHeight * .63f - (5.dp + opponentHeight * 1.35f)
+            else maxHeight * .63f + handHeight
         val billDistance = if (collecting) collectionBillDistance(collection) else 0f
         val handDistance = collectionHandDistance(collection)
-        val opponentHeight = (maxHeight * .25f).coerceAtMost(100.dp)
+        val handScale = if (direction < 0) 1f - .66f * handDistance else 1f
+        val billScale = if (direction < 0) 1f - .66f * billDistance else 1f
         Column(Modifier.align(Alignment.TopCenter).padding(top = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
             CrapsOpponent(model.room, game.winner, Modifier.size(112.dp, opponentHeight))
@@ -197,7 +202,7 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
             }
         }
         Canvas(Modifier.align(Alignment.Center).offset(y = potY + travel * direction * billDistance)
-            .size(maxWidth * .64f, maxHeight * .23f).testTag("craps-money-pile")
+            .size(maxWidth * .64f, maxHeight * .23f).graphicsLayer { scaleX = billScale; scaleY = billScale }.testTag("craps-money-pile")
             .semantics {
                 contentDescription = "Central pile of $" + game.centerPot + " in virtual American bills"
                 stateDescription = if (billDistance == 0f) "Centered" else if (direction < 0) "Moving to opponent" else "Moving to player"
@@ -227,15 +232,19 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         }
         if (collecting) {
             val frame = if (collection < .48f) 1 else if (collection < .60f) 0 else 2
+            val collectorY = potY + travel * direction * handDistance - if (direction < 0) handHeight * .30f * handScale else 0.dp
             val collectorModifier = Modifier.align(Alignment.Center)
-                .offset(y = potY + travel * direction * handDistance - if (direction < 0) handHeight * .20f else 0.dp)
+                .offset(y = collectorY)
                 .size(handWidth, handHeight)
+                .graphicsLayer { scaleX = handScale; scaleY = handScale }
                 .testTag("craps-collector").semantics {
                     contentDescription = if (direction < 0) "Opponent hand collecting the money" else "Player hand collecting the money"
                     stateDescription = if (direction < 0) "Opponent: ${model.room.id}" else "Player: tattooed hand"
                 }
             if (game.winner == CrapsWinner.OPPONENT) {
-                OpponentHand(model.room, collection >= .48f, collectorModifier)
+                val shoulderX = handWidth / 2 + 21.dp / handScale
+                val shoulderY = handHeight / 2 + (5.dp + opponentHeight * .78f - maxHeight / 2 - collectorY) / handScale
+                OpponentHand(model.room, collection >= .48f, shoulderX, shoulderY, 10.dp / handScale, collectorModifier)
             } else HandSprite(hands, frame, collectorModifier)
         }
         val shake = if (rolling && throwProgress < .46f) sin(throwProgress * 70f) else 0f
@@ -300,7 +309,7 @@ private fun DrawScope.drawDie(value: Int, center: Offset, side: Float, angle: Fl
 
 
 @Composable
-private fun OpponentHand(room: RoomStyle, gripping: Boolean, modifier: Modifier) {
+private fun OpponentHand(room: RoomStyle, gripping: Boolean, shoulderX: Dp, shoulderY: Dp, shoulderHalfWidth: Dp, modifier: Modifier) {
     val context = LocalContext.current
     var atlas by remember(room) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(room) { atlas = withContext(Dispatchers.Default) { decodeDealer(context, room) } }
@@ -319,8 +328,8 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, modifier: Modifier)
             val cw = sheet.width / 4
             val rowTop = (rows[0] * sheet.height / 1086f).roundToInt()
             val rowHeight = ((rows[1]-rows[0]) * sheet.height / 1086f).roundToInt()
-            // A shaded continuation joins the sampled costume to the far edge.
-            // Keep tattoos and cuff details at their original proportions below.
+            // Taper the sleeve into the character's lower torso, keeping the
+            // face clear and the original cuff and tattoos at their proportions.
             val sleeveColor = when(room) {
                 RoomStyle.VEGAS -> Color(0xFFD6C4A4)
                 RoomStyle.CARNIVAL -> Color(0xFF874318)
@@ -330,11 +339,14 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, modifier: Modifier)
                 RoomStyle.PUNK -> Color(0xFFE8BDA4)
                 RoomStyle.GREEN -> Color(0xFFE0D3BB)
             }
+            val anchorX = shoulderX.toPx()
+            val anchorY = shoulderY.toPx()
+            val anchorHalf = shoulderHalfWidth.toPx()
             val extension = Path().apply {
-                moveTo(size.width*.34f,-size.height*3f)
-                lineTo(size.width*.78f,-size.height*3f)
-                lineTo(size.width*.78f,size.height*.12f)
-                lineTo(size.width*.34f,size.height*.12f);close()
+                moveTo(anchorX-anchorHalf,anchorY)
+                lineTo(anchorX+anchorHalf,anchorY)
+                lineTo(size.width*.81f,size.height*.08f)
+                lineTo(size.width*.34f,size.height*.08f);close()
             }
             drawPath(extension, Brush.horizontalGradient(listOf(
                 sleeveColor.copy(red=sleeveColor.red*.65f,green=sleeveColor.green*.65f,blue=sleeveColor.blue*.65f),

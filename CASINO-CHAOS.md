@@ -50,7 +50,7 @@ Generated Green Room art used the built-in image tool: reference-based 4x3 cel-a
 
 ## 3.5 table and control refinement
 
-- Craps selects the winning side’s artwork. Each opponent collects with the forward arm from their own approved character atlas, preserving their skin, sleeve, cuff and tattoos. The player retains the supplied tattooed hand. Cash stays attached after contact.
+- Craps selects the winning side’s artwork. Each opponent collects with the forward arm from their own approved character atlas, preserving their skin, sleeve, cuff and tattoos. The player retains the supplied tattooed hand. The opponent's arm stays attached to their lower torso; hand and cash shrink together in perspective as the pot returns to them.
 - Poker seats the existing animated characters behind a single physical felt table, with no portrait boxes or dealer names. Hole cards, community cards, pot and dealer button sit on the table. Essential turn, stack and betting controls remain.
 - Solitaire uses a full-height responsive felt board, all seven columns, direct stack dragging, tap moves, fanned draw-three stock, source/destination hints, unlimited undo, recycling, new-deal confirmation and auto-finish for fully exposed layouts. Rules move to Help.
 - Blackjack shares a continuous felt surface behind both card hands. Shared cards have clearer corner indices and shallow contact shadows.
