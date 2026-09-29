@@ -180,6 +180,8 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                 }
             }
             if(g.won) {
+                val stackX=(maxWidth-cardW)/2
+                val stackY=maxHeight*.43f
                 Box(Modifier.fillMaxSize().testTag("sol-win-stack").semantics {
                     contentDescription="All 52 cards gathering into one winning stack"
                     stateDescription=if(celebration.value<1f)"Collecting" else "Stacked"
@@ -188,8 +190,8 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                         val index=n*4+f
                         val t=FastOutSlowInEasing.transform(((celebration.value-index*.005f)/.72f).coerceIn(0f,1f))
                         val startX=left+(cardW+gap)*f
-                        val endX=(maxWidth-cardW)/2+0.6.dp*(index%3)
-                        val endY=maxHeight*.43f+0.5.dp*(index%6)
+                        val endX=stackX+0.6.dp*(index%3)
+                        val endY=stackY+0.5.dp*(index%6)
                         Box(Modifier.offset(startX+(endX-startX)*t,top+(endY-top)*t-cardH*(sin(t*PI).toFloat()*.65f))
                             .graphicsLayer { rotationZ=(1f-t)*(f-1.5f)*12f }) {
                             CardView(if(t>.85f)"?" else card.toString(),cardW,cardH)
