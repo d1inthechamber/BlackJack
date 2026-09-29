@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -247,14 +246,13 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
                 val drawnWidth = handWidth * handScale
                 val drawnHeight = handHeight * handScale
                 val handTop = maxHeight / 2 + collectorY - drawnHeight / 2
-                val shoulderX = drawnWidth / 2 - opponentHeight * .25f
-                val shoulderY = 5.dp + opponentHeight * .50f - handTop
-                // Draw the complete arm in scene coordinates so the textured
-                // upper sleeve is never clipped by the foreground hand's layer.
+                // The arm starts at the exact cut line in the matching body pose.
+                // One continuous piece of artwork connects that line to the pot.
                 OpponentHand(model.room, collection >= .48f, (maxWidth-drawnWidth)/2, handTop,
-                    drawnWidth, drawnHeight, shoulderX, shoulderY, opponentHeight * .15f,
+                    drawnWidth, drawnHeight, (maxWidth-opponentHeight)/2,
+                    5.dp + opponentHeight * .50f,
+                    opponentHeight * if (model.room == RoomStyle.WEST) .44f else .39f,
                     Modifier.fillMaxSize().testTag("craps-collector").semantics {
-                        contentDescription = "Opponent hand collecting the money"
                         stateDescription = "Opponent: ${model.room.id}"
                     })
             } else HandSprite(hands, frame, collectorModifier)
@@ -330,13 +328,12 @@ private fun DrawScope.drawDie(value: Int, center: Offset, side: Float, angle: Fl
 }
 
 
-private data class OpponentArmArt(val atlas: ImageBitmap, val sleeve: ImageBitmap)
-
 @Composable
 private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handTop: Dp,
-    handWidth: Dp, handHeight: Dp, shoulderX: Dp, shoulderY: Dp, shoulderHalfWidth: Dp, modifier: Modifier) {
+    handWidth: Dp, handHeight: Dp, originLeft: Dp, originTop: Dp, originWidth: Dp, modifier: Modifier) {
     val context = LocalContext.current
-    var art by remember(room) { mutableStateOf<OpponentArmArt?>(null) }
+    var arm by remember(room) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG) }
     val rows = when (room) {
         RoomStyle.CARNIVAL -> intArrayOf(356,702)
         RoomStyle.PUNK -> intArrayOf(362,716)
@@ -345,59 +342,18 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handT
         RoomStyle.GREEN -> intArrayOf(362,724)
         else -> intArrayOf(364,723)
     }
-    // Publish the atlas and original sleeve texture together. Draw observers
-    // must never see a ready foreground hand with a still-missing sleeve.
+    // Crop and mask the actual forward arm once. Preserve its original cuff,
+    // tattoos, fingers and transparency instead of adding a stretched texture.
     LaunchedEffect(room) {
-        art = withContext(Dispatchers.Default) {
+        arm = withContext(Dispatchers.Default) {
             val atlas = decodeDealer(context, room)
             val cw = atlas.width / 4
             val rowTop = (rows[0] * atlas.height / 1086f).roundToInt()
             val rowHeight = ((rows[1]-rows[0]) * atlas.height / 1086f).roundToInt()
-            val patchX = when(room) { RoomStyle.CARNIVAL -> .24f; RoomStyle.GREEN -> .20f; else -> .18f }
-            val sleeve = android.graphics.Bitmap.createBitmap(atlas.asAndroidBitmap(), (cw*patchX).roundToInt(),
-                rowTop + (rowHeight*.50f).roundToInt(), (cw*.06f).roundToInt(), (rowHeight*.08f).roundToInt()).asImageBitmap()
-            OpponentArmArt(atlas, sleeve)
-        }
-    }
-    Canvas(modifier) {
-        val images = art
-        // Keep every sleeve coordinate inside the scene's drawing layer. The
-        // regular image path remains visible even at the farthest reach frame.
-        val left = handLeft.toPx()
-        val top = handTop.toPx()
-        val width = handWidth.toPx()
-        val height = handHeight.toPx()
-        val anchorX = left + shoulderX.toPx()
-        val anchorY = top + shoulderY.toPx()
-        val anchorHalf = shoulderHalfWidth.toPx()
-        val jointLeft = left + width*.34f
-        val jointRight = left + width*.81f
-        val jointY = top + height*.08f
-        val extension = Path().apply {
-            moveTo(anchorX-anchorHalf,anchorY);lineTo(anchorX+anchorHalf,anchorY)
-            lineTo(jointRight,jointY);lineTo(jointLeft,jointY);close()
-        }
-        images?.sleeve?.let { texture ->
-            val x = min(anchorX-anchorHalf,jointLeft)
-            val y = min(anchorY,jointY)
-            val w = max(anchorX+anchorHalf,jointRight)-x
-            val h = abs(jointY-anchorY).coerceAtLeast(1f)
-            clipPath(extension) {
-                drawImage(texture,srcSize=IntSize(texture.width,texture.height),
-                    dstOffset=IntOffset(x.roundToInt(),y.roundToInt()),
-                    dstSize=IntSize(w.roundToInt().coerceAtLeast(1),h.roundToInt().coerceAtLeast(1)),
-                    filterQuality=FilterQuality.Medium)
-            }
-        }
-        drawPath(extension,Color(0xFF514032),style=Stroke(.6.dp.toPx()))
-        inset(handLeft.toPx(), handTop.toPx(), size.width-handLeft.toPx()-handWidth.toPx(),
-            size.height-handTop.toPx()-handHeight.toPx()) {
-        images?.atlas?.let { sheet ->
-            // Isolate the forward arm of the approved dealing pose, including its
-            // skin tone, cuff, jewelry and tattoos. Never reuse the player's atlas.
-            val cw = sheet.width / 4
-            val rowTop = (rows[0] * sheet.height / 1086f).roundToInt()
-            val rowHeight = ((rows[1]-rows[0]) * sheet.height / 1086f).roundToInt()
+            val width = (cw * if (room == RoomStyle.WEST) .44f else .39f).roundToInt()
+            val height = (rowHeight * .50f).roundToInt()
+            val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
             // The outer forearm boundary differs by costume. These small masks
             // exclude adjacent torso pixels without altering the character art.
             val edge = when(room) {
@@ -409,19 +365,44 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handT
                 RoomStyle.PUNK -> listOf(.92f to 0f,.70f to .50f,.65f to .64f,.84f to .89f,.77f to 1f)
                 RoomStyle.GREEN -> listOf(.87f to 0f,.57f to .35f,.58f to .54f,.70f to .73f,.72f to .85f,.59f to 1f)
             }
-            val mask = Path().apply {
-                moveTo(size.width*.22f,0f)
-                edge.forEach { (x,y) -> lineTo(size.width*x,size.height*y) }
-                lineTo(0f,size.height);lineTo(0f,0f);close()
+            val mask = android.graphics.Path().apply {
+                moveTo(width*.22f,0f)
+                edge.forEach { (x,y) -> lineTo(width*x,height*y) }
+                lineTo(0f,height.toFloat());lineTo(0f,0f);close()
             }
-            clipPath(mask) {
-                drawImage(sheet,
-                    srcOffset = IntOffset(0, rowTop + (rowHeight*.50f).roundToInt()),
-                    srcSize = IntSize((cw * if(room == RoomStyle.WEST) .44f else .39f).roundToInt(), (rowHeight*.50f).roundToInt()),
-                    dstSize = IntSize(size.width.roundToInt(), (size.height * if(gripping) .94f else 1f).roundToInt()),
-                    filterQuality = FilterQuality.Medium)
-            }
+            canvas.clipPath(mask)
+            canvas.drawBitmap(atlas.asAndroidBitmap(),
+                android.graphics.Rect(0,rowTop+height,width,rowTop+height*2),
+                android.graphics.Rect(0,0,width,height),null)
+            bitmap
         }
+    }
+    Canvas(modifier.semantics {
+        contentDescription = if (arm == null) "Loading opponent hand" else "Opponent hand collecting the money"
+    }) {
+        arm?.let { bitmap ->
+            val width = handWidth.toPx()
+            val height = handHeight.toPx() * if (gripping) .94f else 1f
+            val left = handLeft.toPx()
+            val top = handTop.toPx()
+            val columns = 8
+            val rowsCount = 24
+            val vertices = FloatArray((columns+1)*(rowsCount+1)*2)
+            var index = 0
+            for (row in 0..rowsCount) {
+                val v = row.toFloat()/rowsCount
+                // Only the sleeve bends. The lower forearm and whole hand retain
+                // their artwork proportions while the cash moves with them.
+                val blend = ((.58f-v)/.58f).coerceIn(0f,1f)
+                val bend = blend*blend*(3f-2f*blend)
+                for (column in 0..columns) {
+                    val u = column.toFloat()/columns
+                    val x = left+u*width
+                    vertices[index++] = x+(originLeft.toPx()+u*originWidth.toPx()-x)*bend
+                    vertices[index++] = top+v*height+(originTop.toPx()-top)*bend
+                }
+            }
+            drawContext.canvas.nativeCanvas.drawBitmapMesh(bitmap,columns,rowsCount,vertices,0,null,0,paint)
         }
     }
 }

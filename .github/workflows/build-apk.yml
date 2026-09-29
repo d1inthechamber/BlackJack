@@ -95,6 +95,14 @@ jobs:
             app/build/reports/androidTests
           if-no-files-found: warn
 
+      - name: Upload collection animation screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: craps-collection-evidence
+          path: screenshots/chaos-craps*.png
+          if-no-files-found: error
+
   foldable-tests:
     name: Pixel Fold-equivalent layout tests
     runs-on: ubuntu-latest

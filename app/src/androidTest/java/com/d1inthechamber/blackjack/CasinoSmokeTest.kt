@@ -210,7 +210,9 @@ class CasinoSmokeTest {
                 rule.mainClock.advanceTimeByFrame();rule.mainClock.advanceTimeBy(1050)
                 rule.onNodeWithTag("craps-collector").assert(SemanticsMatcher.expectValue(
                     androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Opponent: ${room.id}"))
-                Thread.sleep(500)
+                rule.waitUntil(15000) {
+                    rule.onAllNodesWithContentDescription("Opponent hand collecting the money").fetchSemanticsNodes().size==1
+                }
                 shot("craps-hand-${room.id}")
             } finally { rule.mainClock.autoAdvance=true }
         }
