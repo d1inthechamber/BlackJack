@@ -33,7 +33,10 @@ class CasinoSmokeTest {
     }
     @Test fun solitaireDrawUndoAndRoomTheme(){
         reset();rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
-        rule.onNodeWithTag("sol-stock").performClick();rule.onNodeWithContentDescription("Draw 1; 23 cards left").assertExists()
+        val stock=rule.onNodeWithTag("sol-stock").fetchSemanticsNode().boundsInRoot
+        val foundation=rule.onNodeWithTag("sol-foundation-3").fetchSemanticsNode().boundsInRoot
+        assertTrue("Stock belongs on the right",stock.left>foundation.right)
+        rule.onNodeWithTag("sol-draw").assertIsDisplayed().performClick();rule.onNodeWithContentDescription("Draw 1; 23 cards left").assertExists()
         rule.onNodeWithTag("sol-undo").performClick();rule.onNodeWithContentDescription("Draw 1; 24 cards left").assertExists();repeat(7){rule.onNodeWithTag("sol-column-$it").assertIsDisplayed()}
         shot("solitaire")
         rule.activityRule.scenario.recreate();rule.onNodeWithContentDescription("Draw 1; 24 cards left").assertExists()
@@ -202,7 +205,7 @@ class CasinoSmokeTest {
         reset();rule.onNodeWithText("CRAPS").performScrollTo().performClick()
         val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         for(room in RoomStyle.entries) {
-            rule.runOnUiThread { m.finishCrapsCollection();m.selectRoom(room) }
+            rule.runOnUiThread { m.finishCrapsCollection();m.change { m.craps.opponentShooter=false };m.selectRoom(room) }
             rule.waitUntil(15000) {
                 rule.onAllNodes(hasTestTag("craps-opponent") and SemanticsMatcher.expectValue(
                     androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==1
@@ -221,4 +224,78 @@ class CasinoSmokeTest {
         }
     }
 
+
+    @Test fun opponentActuallyHoldsThenThrowsTheDice() {
+        reset();rule.onNodeWithText("CRAPS").performScrollTo().performClick()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { m.change { m.craps.opponentShooter=true } }
+        rule.waitUntil(15000) { rule.onAllNodesWithContentDescription("Opponent holding and throwing dice").fetchSemanticsNodes().size==1 }
+        rule.onNodeWithTag("craps-hand").assertDoesNotExist()
+        rule.mainClock.autoAdvance=false
+        try {
+            rule.onNodeWithTag("craps-roll").performScrollTo().performClick()
+            rule.mainClock.advanceTimeByFrame();rule.mainClock.advanceTimeBy(220)
+            rule.onNodeWithTag("craps-held-dice").assertExists()
+            rule.onNodeWithTag("craps-opponent-dice-hand").assertExists()
+            shot("craps-opponent-hold")
+            rule.mainClock.advanceTimeBy(430)
+            rule.onNodeWithTag("craps-held-dice").assertDoesNotExist()
+            rule.onNodeWithTag("craps-opponent-dice-hand").assertDoesNotExist()
+            shot("craps-opponent-throw")
+            rule.runOnUiThread { assertTrue(m.craps.active);assertEquals(975.0,m.game.bankroll,0.0) }
+            rule.onNodeWithTag("nav-games").performClick()
+        } finally { rule.mainClock.autoAdvance=true }
+    }
+
+    @Test fun solitaireWinGathersEveryCardAndDeadDealShowsAnAlert() {
+        reset();rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { m.change {
+            m.casino.solitaire=SolitaireGame().apply {
+                stock.clear();waste.clear();columns.forEach { it.clear() };hidden.fill(0)
+                listOf("♠","♥","♦","♣").forEachIndexed { i,suit -> foundations[i].addAll(singlePack().filter { it.suit==suit }) }
+                waste.add(foundations[3].removeAt(12));moves=51
+            }
+        } }
+        rule.onNodeWithTag("sol-waste-0").assertIsDisplayed()
+        rule.mainClock.autoAdvance=false
+        try {
+            rule.onNodeWithTag("sol-waste-0").performClick()
+            rule.mainClock.advanceTimeByFrame();rule.mainClock.advanceTimeBy(350)
+            rule.onNodeWithTag("sol-win-stack").assert(SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Collecting"))
+            shot("solitaire-win-motion")
+            rule.mainClock.advanceTimeBy(2000)
+            rule.onNodeWithTag("sol-win-stack").assert(SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Stacked"))
+            rule.runOnUiThread { assertTrue(m.casino.solitaire.won);assertEquals(1100.0,m.game.bankroll,0.0) }
+            shot("solitaire-win-stack")
+        } finally { rule.mainClock.autoAdvance=true }
+        rule.activityRule.scenario.recreate()
+        rule.onNodeWithTag("sol-win-stack").assert(SemanticsMatcher.expectValue(
+            androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Stacked"))
+        val restored=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { restored.change {
+            assertEquals(1100.0,restored.game.bankroll,0.0)
+            restored.casino.solitaire=SolitaireGame().apply {
+                stock.clear();waste.clear();columns.forEach { it.clear() };hidden.fill(0)
+                repeat(7) { columns[it].add(Card("${it+2}","♠")) };moves=1
+            }
+        } }
+        rule.waitUntil(10000) { rule.onAllNodesWithTag("sol-no-moves-dialog").fetchSemanticsNodes().size==1 }
+        rule.onNodeWithText("No moves left").assertIsDisplayed();shot("solitaire-no-moves")
+        rule.onNodeWithText("CLOSE").performClick()
+    }
+
+    @Test fun everySoundLoadsPlaysAndObeysMute() {
+        lateinit var bank:CasinoAudio
+        rule.runOnUiThread { bank=CasinoAudio(rule.activity) }
+        try {
+            rule.waitUntil(15000) { CasinoSound.entries.all { bank.isReady(it) } }
+            CasinoSound.entries.forEach { assertTrue("$it must play",bank.play(it)>0) }
+            bank.enabled=false
+            CasinoSound.entries.forEach { assertEquals(0,bank.play(it)) }
+            bank.enabled=true;assertTrue(bank.play(CasinoSound.CARD)>0)
+        } finally { bank.close() }
+    }
 }

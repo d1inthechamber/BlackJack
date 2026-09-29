@@ -1,6 +1,7 @@
 package com.d1inthechamber.blackjack
 
 import androidx.compose.foundation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,15 +19,21 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.PI
+import kotlin.math.sin
 
 @Composable
 internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
     val g = model.casino.solitaire
     val revision = model.revision
+    val audio=LocalCasinoAudio.current
     val targets = remember(g) { mutableMapOf<Int, Rect>() }
     val drag = remember(g) { SolitaireDragState() }
     var selected by remember(g) { mutableStateOf<SolitairePick?>(null) }
@@ -36,17 +43,38 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
     var drawChoice by remember { mutableIntStateOf(g.drawCount) }
     var help by remember { mutableStateOf(false) }
     var finishing by remember(g) { mutableStateOf(false) }
-    val stuck = remember(g, revision, g.moves) { g.stuck }
+    var progress by remember(g) { mutableStateOf(SolitaireProgress.AVAILABLE) }
+    var noMoves by remember(g) { mutableStateOf(false) }
+    var warned by remember(g) { mutableStateOf(false) }
+    val stuck=progress==SolitaireProgress.BLOCKED&&!g.won
+    val celebration=remember(g) { Animatable(if(g.won)1f else 0f) }
+    var hadWon by remember(g) { mutableStateOf(g.won) }
+    LaunchedEffect(g,revision) {
+        val snapshot=g.snapshot()
+        progress=withContext(Dispatchers.Default) { solitaireProgress(snapshot,g.drawCount) }
+        if(progress==SolitaireProgress.BLOCKED&&g.moves>0&&!warned) {
+            warned=true;noMoves=true;audio?.play(CasinoSound.LOSE)
+        } else if(progress==SolitaireProgress.AVAILABLE)warned=false
+    }
+    LaunchedEffect(g,g.won) {
+        if(g.won&&!hadWon) {
+            hadWon=true
+            audio?.play(CasinoSound.WIN)
+            celebration.snapTo(0f)
+            celebration.animateTo(1f,tween(1900,easing=LinearEasing))
+        }
+    }
     fun reward() { if (g.won && !g.rewarded) { g.rewarded = true; model.game.bankroll += 100 } }
     fun move(pick: SolitairePick, dest: Int) {
         if (finishing) return
         model.change {
-            if (g.move(pick, dest)) { selected = null; hint = null; note = ""; reward() }
-            else note = "Try another pile"
+            if (g.move(pick, dest)) { audio?.play(CasinoSound.CARD);selected = null; hint = null; note = ""; reward() }
+            else {audio?.play(CasinoSound.INVALID,.3f);note = "Try another pile"}
         }
     }
     fun select(p: SolitairePick) {
         if (finishing) return
+        audio?.play(CasinoSound.TAP,.55f)
         val previous = selected
         if (previous != null && previous.pile != p.pile && g.legal(previous, p.pile)) { move(previous, p.pile); return }
         val dest = ((7..10).toList() + (0..6).toList()).firstOrNull {
@@ -55,13 +83,13 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
         if (dest != null) move(p, dest) else { selected = if (selected == p) null else p; hint = null }
     }
     fun draw() {
-        if (!finishing) { model.change { g.draw() }; selected = null; hint = null; note = "" }
+        if (!finishing) { model.change { if(g.draw())audio?.play(CasinoSound.CARD) }; selected = null; hint = null; note = "" }
     }
     LaunchedEffect(finishing) {
         if (finishing) {
             while (!g.won) {
                 val next = g.nextFoundationMove() ?: break
-                model.change { g.move(next.first, next.second); reward() }
+                model.change { g.move(next.first, next.second); reward() };audio?.play(CasinoSound.CARD,.3f)
                 delay(100)
             }
             finishing = false
@@ -82,7 +110,7 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
             TableFelt(Modifier.fillMaxSize())
             val gap = 4.dp
             val inset = 10.dp
-            val cardW = ((maxWidth - inset * 2 - gap * 6) / 7).coerceAtMost((maxHeight - 40.dp) / 3.4f)
+            val cardW = minOf(64.dp,(maxWidth - inset * 2 - gap * 6) / 7,(maxHeight - 40.dp) / 3.4f)
             val cardH = cardW * 1.42f
             val boardWidth = cardW * 7 + gap * 6
             val left = (maxWidth - boardWidth) / 2
@@ -91,7 +119,7 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
             val available = maxHeight - tableauY - 12.dp
             fun outlined(p: SolitairePick) = p == selected || p == hint?.first
             fun border(on: Boolean) = if (on) Modifier.border(2.dp, model.room.accent, RoundedCornerShape(5.dp)) else Modifier
-            Box(Modifier.offset(left, top).size(cardW, cardH).testTag("sol-stock")
+            Box(Modifier.offset(left+(cardW+gap)*6, top).size(cardW, cardH).testTag("sol-stock")
                 .semantics { contentDescription = if (board.stock.isEmpty()) "Recycle stock" else "Draw ${g.drawCount}; ${board.stock.size} cards left" }
                 .clickable(enabled = !finishing && !g.won) { draw() }) {
                 if (board.stock.isNotEmpty()) CardView("?", cardW, cardH) else SolitaireSlot("↻", cardW, cardH)
@@ -99,11 +127,11 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                     modifier = Modifier.align(Alignment.BottomCenter).background(Color.Black.copy(alpha = .8f), RoundedCornerShape(3.dp)).padding(horizontal = 5.dp))
             }
             val fanCount = if (g.drawCount == 3) minOf(3, board.waste.size) else minOf(1, board.waste.size)
-            if (fanCount == 0) Box(Modifier.offset(left + cardW + gap, top)) { SolitaireSlot("", cardW, cardH) }
+            if (fanCount == 0) Box(Modifier.offset(left + (cardW+gap)*5, top)) { SolitaireSlot("", cardW, cardH) }
             board.waste.takeLast(fanCount).forEachIndexed { i, card ->
                 val p = SolitairePick(-1, board.waste.size - fanCount + i)
                 val topCard = i == fanCount - 1
-                Box(Modifier.offset(left + cardW + gap + cardW * (.42f * i), top)
+                Box(Modifier.offset(left + (cardW+gap)*5 - cardW * (.40f * (fanCount-1-i)), top)
                     .zIndex(if (drag.pick?.pile == -1) 40f else i.toFloat())
                     .testTag("sol-waste-$i")
                     .solitaireDrag(drag, topCard && !finishing, p, targets) { move(p, it) }
@@ -113,14 +141,16 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
             }
             repeat(4) { f ->
                 val p = SolitairePick(f + 7, board.foundations[f].lastIndex)
-                Box(Modifier.offset(left + (cardW + gap) * (f + 3), top).size(cardW, cardH)
+                Box(Modifier.offset(left + (cardW + gap) * f, top).size(cardW, cardH)
                     .zIndex(if (drag.pick?.pile == f + 7) 40f else 0f).testTag("sol-foundation-$f")
                     .onGloballyPositioned { targets[f + 7] = it.boundsInRoot() }
                     .solitaireDrag(drag, board.foundations[f].isNotEmpty() && !finishing, p, targets) { move(p, it) }
                     .then(border(outlined(p) || hint?.second == f + 7)).clickable(enabled = !finishing) {
+                        audio?.play(CasinoSound.TAP,.55f)
                         selected?.let { move(it, f + 7) } ?: run { if (board.foundations[f].isNotEmpty()) selected = p }
                     }) {
-                    board.foundations[f].lastOrNull()?.let { CardView(it.toString(), cardW, cardH) } ?: SolitaireSlot("A", cardW, cardH)
+                    if(g.won) SolitaireSlot("A",cardW,cardH)
+                    else board.foundations[f].lastOrNull()?.let { CardView(it.toString(), cardW, cardH) } ?: SolitaireSlot("A", cardW, cardH)
                 }
             }
             repeat(7) { c ->
@@ -149,17 +179,43 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+            if(g.won) {
+                Box(Modifier.fillMaxSize().testTag("sol-win-stack").semantics {
+                    contentDescription="All 52 cards gathering into one winning stack"
+                    stateDescription=if(celebration.value<1f)"Collecting" else "Stacked"
+                }) {
+                    board.foundations.forEachIndexed { f,cards -> cards.forEachIndexed { n,card ->
+                        val index=n*4+f
+                        val t=FastOutSlowInEasing.transform(((celebration.value-index*.005f)/.72f).coerceIn(0f,1f))
+                        val startX=left+(cardW+gap)*f
+                        val endX=(maxWidth-cardW)/2+0.6.dp*(index%3)
+                        val endY=maxHeight*.43f+0.5.dp*(index%6)
+                        Box(Modifier.offset(startX+(endX-startX)*t,top+(endY-top)*t-cardH*(sin(t*PI).toFloat()*.65f))
+                            .graphicsLayer { rotationZ=(1f-t)*(f-1.5f)*12f }) {
+                            CardView(if(t>.85f)"?" else card.toString(),cardW,cardH)
+                        }
+                    } }
+                    Text("YOU WIN!",color=model.room.accent,fontWeight=FontWeight.Black,fontSize=25.sp,
+                        modifier=Modifier.align(Alignment.Center).offset(y=cardH+32.dp))
+                }
+            }
         }
         Row(Modifier.fillMaxWidth().height(52.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { model.change { g.undo() }; selected = null; hint = null; note = "" }, enabled = g.canUndo && !finishing, modifier = Modifier.weight(1f).testTag("sol-undo"), contentPadding = PaddingValues(0.dp)) { Text("↶ UNDO", fontSize = 12.sp) }
+            TextButton(onClick = { model.change { g.undo() };audio?.play(CasinoSound.CARD); selected = null; hint = null; note = "" }, enabled = g.canUndo && !finishing, modifier = Modifier.weight(1f).testTag("sol-undo"), contentPadding = PaddingValues(0.dp)) { Text("↶ UNDO", fontSize = 11.sp) }
             TextButton(onClick = {
+                audio?.play(CasinoSound.CLICK)
                 hint = g.hint(); selected = hint?.first
                 note = if (hint == null && !stuck) { if (g.stock.isEmpty()) "TAP ↻ TO RECYCLE" else "TAP THE STOCK" } else ""
-            }, enabled = !g.won && !finishing, modifier = Modifier.weight(1f).testTag("sol-hint"), contentPadding = PaddingValues(0.dp)) { Text("◇ HINT", fontSize = 12.sp) }
-            if (g.canAutoFinish && !g.won) TextButton(onClick = { finishing = true }, enabled = !finishing, modifier = Modifier.weight(1f).testTag("sol-finish"), contentPadding = PaddingValues(0.dp)) { Text("FINISH", fontSize = 12.sp) }
-            TextButton(onClick = { drawChoice = g.drawCount; newGame = true }, enabled = !finishing, modifier = Modifier.weight(1f).testTag("sol-new"), contentPadding = PaddingValues(0.dp)) { Text("+ NEW", fontSize = 12.sp) }
+            }, enabled = !g.won && !finishing, modifier = Modifier.weight(1f).testTag("sol-hint"), contentPadding = PaddingValues(0.dp)) { Text("◇ HINT", fontSize = 11.sp) }
+            TextButton(onClick = { audio?.play(CasinoSound.CLICK);drawChoice = g.drawCount; newGame = true }, enabled = !finishing, modifier = Modifier.weight(1f).testTag("sol-new"), contentPadding = PaddingValues(0.dp)) { Text("+ NEW", fontSize = 11.sp) }
+            if (g.canAutoFinish && !g.won) Button(onClick = { finishing = true }, enabled = !finishing, modifier = Modifier.weight(1.2f).testTag("sol-finish"), contentPadding = PaddingValues(0.dp)) { Text("FINISH", fontSize = 11.sp) }
+            else Button(onClick = { draw() },enabled=!finishing&&!g.won,modifier=Modifier.weight(1.2f).testTag("sol-draw"),contentPadding=PaddingValues(0.dp)) { Text(if(g.stock.isEmpty())"RECYCLE" else "DRAW",fontSize=11.sp) }
         }
     }
+    if(noMoves)AlertDialog(onDismissRequest={noMoves=false},modifier=Modifier.testTag("sol-no-moves-dialog"),
+        title={Text("No moves left")},text={Text("No remaining move can reveal a card or advance this deal. Undo a move or start a new deal.")},
+        confirmButton={TextButton(onClick={noMoves=false;drawChoice=g.drawCount;newGame=true}){Text("NEW DEAL")}},
+        dismissButton={TextButton(onClick={noMoves=false;if(g.canUndo){model.change{g.undo()};audio?.play(CasinoSound.CARD)}}){Text(if(g.canUndo)"UNDO" else "CLOSE")}})
     if (newGame) AlertDialog(onDismissRequest = { newGame = false }, title = { Text("New deal?") }, text = {
         Column {
             Text("Replace this layout?")
@@ -167,10 +223,10 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                 listOf(1, 3).forEach { n -> FilterChip(selected = n == drawChoice, onClick = { drawChoice = n }, label = { Text("DRAW $n") }) }
             }
         }
-    }, confirmButton = { TextButton(onClick = { model.change { model.casino.solitaire = SolitaireGame(drawChoice) }; newGame = false }) { Text("DEAL NEW") } },
+    }, confirmButton = { TextButton(onClick = { model.change { model.casino.solitaire = SolitaireGame(drawChoice) };audio?.play(CasinoSound.SHUFFLE); newGame = false }) { Text("DEAL NEW") } },
         dismissButton = { TextButton(onClick = { newGame = false }) { Text("CANCEL") } })
     if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text("Klondike") }, text = {
-        Text("Tap a card for a legal move, or drag a card and every card below it to another pile.\n\nBuild down in alternating colours. Empty columns take kings. The four top piles build up from ace to king by suit. Tap the stock to draw; tap ↻ to recycle.\n\nUndo reverses a move. Hint lights the source and destination. New lets you choose draw-one or draw-three. Finish appears when every remaining card is exposed. A completed deal awards 100 virtual chips once.")
+        Text("Tap a card for a legal move, or drag a card and every card below it to another pile.\n\nBuild down in alternating colours. Empty columns take kings. The four top piles build up from ace to king by suit. Use DRAW at the bottom right, or tap the stock at the top right. RECYCLE returns the waste to the stock.\n\nUndo reverses a move. Hint lights the source and destination. New lets you choose draw-one or draw-three. Finish appears when every remaining card is exposed. A completed deal awards 100 virtual chips once.")
     }, confirmButton = { TextButton(onClick = { help = false }) { Text("CLOSE") } })
 }
 
@@ -192,12 +248,13 @@ private fun Modifier.solitaireDrag(state: SolitaireDragState, enabled: Boolean, 
     var origin by remember { mutableStateOf(Offset.Zero) }
     var dragOrigin by remember { mutableStateOf(Offset.Zero) }
     val drop by rememberUpdatedState(onDrop)
+    val audio=LocalCasinoAudio.current
     val follows = state.pick?.let { it.pile == pick.pile && pick.index >= it.index } == true
     return onGloballyPositioned { origin = it.boundsInRoot().topLeft }
         .zIndex(if (follows) 30f else 0f)
         .graphicsLayer { translationX = if (follows) state.shift.x else 0f; translationY = if (follows) state.shift.y else 0f; shadowElevation = if (follows) 12.dp.toPx() else 0f }
         .pointerInput(enabled, pick) { if (enabled) detectDragGestures(
-            onDragStart = { dragOrigin = origin; state.pick = pick; state.shift = Offset.Zero },
+            onDragStart = { audio?.play(CasinoSound.TAP);dragOrigin = origin; state.pick = pick; state.shift = Offset.Zero },
             onDragEnd = {
                 val point = dragOrigin + state.shift + Offset(size.width / 2f, size.height / 2f)
                 targets.entries.firstOrNull { it.key != pick.pile && it.value.contains(point) }?.let { drop(it.key) }

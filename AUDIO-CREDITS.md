@@ -19,3 +19,7 @@ converted to mono Ogg Vorbis and loudness-normalized for in-game playback.
 
 These reactions are used only for brief laugh, frustration, and tension cues.
 They never loop and respect the persistent Dealer Voices setting.
+
+Version 3.6 adds original procedural effects and short original win/loss melodies
+implemented in `SoundSynthesis.kt`. They are synthesized locally as mono PCM,
+contain no external samples, and respect the independent Effects switch.

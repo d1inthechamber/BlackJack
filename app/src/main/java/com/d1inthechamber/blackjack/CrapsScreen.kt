@@ -34,11 +34,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlin.math.*
 
 @Composable
 internal fun CrapsScreen(model: BlackjackViewModel, onBack: () -> Unit) {
     val game = model.craps
+    val audio = LocalCasinoAudio.current
     val revision = model.revision
     var rolling by remember { mutableStateOf(false) }
     val throwProgress = remember { Animatable(0f) }
@@ -57,27 +59,41 @@ internal fun CrapsScreen(model: BlackjackViewModel, onBack: () -> Unit) {
 
     LaunchedEffect(rolling) {
         if (rolling) {
+            audio?.play(CasinoSound.DICE_SHAKE)
             throwProgress.snapTo(0f)
-            throwProgress.animateTo(.90f, tween(1000, easing = LinearEasing))
+            throwProgress.animateTo(.46f, tween(450, easing = LinearEasing))
+            audio?.play(CasinoSound.DICE_ROLL)
+            throwProgress.animateTo(.90f, tween(550, easing = LinearEasing))
             model.shootCraps()
             throwProgress.animateTo(1f, tween(180))
             rolling = false
         }
     }
+    LaunchedEffect(rolling, game.active, game.opponentShooter, game.winner) {
+        if(!rolling && game.active && game.opponentShooter && game.winner == CrapsWinner.NONE) {
+            delay(850)
+            rolling=true
+        }
+    }
     LaunchedEffect(game.collectionPulse, rolling) {
         if (!rolling && game.winner != CrapsWinner.NONE) {
+            audio?.play(if(game.winner==CrapsWinner.PLAYER)CasinoSound.WIN else CasinoSound.LOSE,.4f)
             collection.snapTo(0f)
-            collection.animateTo(1f, tween(2100, easing = LinearEasing))
+            collection.animateTo(.60f, tween(1260, easing = LinearEasing))
+            audio?.play(CasinoSound.MONEY)
+            collection.animateTo(1f, tween(840, easing = LinearEasing))
             model.finishCrapsCollection()
         }
     }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF100E10))) {
-        val landscape = maxWidth > maxHeight && maxWidth >= 600.dp
-        val sceneHeight = if (landscape) (maxHeight - 64.dp).coerceAtLeast(180.dp)
-            else (maxHeight - 242.dp).coerceIn(280.dp, 440.dp)
+        // Preserve one portrait composition on both Fold screens, including the
+        // wide inner screen. Extra width becomes margins instead of a new layout.
+        val playWidth = minOf(maxWidth - 32.dp, 430.dp,
+            ((maxHeight - 242.dp) / 1.17f).coerceAtLeast(280.dp))
+        val sceneHeight = playWidth * 1.17f
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
+            Modifier.align(Alignment.TopCenter).width(playWidth).fillMaxHeight().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -87,20 +103,9 @@ internal fun CrapsScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                 Text("$" + formatChips(model.game.bankroll), color = model.room.accent,
                     fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
-            if (landscape) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    CrapsScene(model, rolling, throwProgress.value, collection.value, canShoot, shoot,
-                        Modifier.weight(.60f).height(sceneHeight))
-                    Column(Modifier.weight(.40f).heightIn(max = sceneHeight).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CrapsControls(model, rolling, canShoot, shoot)
-                    }
-                }
-            } else {
-                CrapsScene(model, rolling, throwProgress.value, collection.value, canShoot, shoot,
-                    Modifier.fillMaxWidth().height(sceneHeight))
-                CrapsControls(model, rolling, canShoot, shoot)
-            }
+            CrapsScene(model, rolling, throwProgress.value, collection.value, canShoot, shoot,
+                Modifier.fillMaxWidth().height(sceneHeight))
+            CrapsControls(model, rolling, canShoot, shoot)
             if (model.game.bankroll < 10 && !game.active && !busy) {
                 Button(onClick = { model.refill() }, modifier = Modifier.fillMaxWidth()) {
                     Text("REFILL • 1,000 FREE VIRTUAL DOLLARS")
@@ -117,12 +122,13 @@ private fun ColumnScope.CrapsControls(model: BlackjackViewModel, rolling: Boolea
     val revision = model.revision
     val game = model.craps
     var help by remember { mutableStateOf(false) }
+    val audio=LocalCasinoAudio.current
     Text(when { rolling -> ""; game.winner == CrapsWinner.PLAYER -> "YOU WIN"; game.winner == CrapsWinner.OPPONENT -> "HAND LOST"; game.active -> "${game.dieOne + game.dieTwo} · POINT ${game.point}"; else -> "" }, color = Color(0xFFF5E8D1), fontSize = 14.sp,
         modifier = Modifier.fillMaxWidth().testTag("craps-message"), textAlign = TextAlign.Center)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf(10, 25, 50, 100).forEach { amount ->
             OutlinedButton(
-                onClick = { model.setCrapsBet(amount) },
+                onClick = { audio?.play(CasinoSound.MONEY,.4f);model.setCrapsBet(amount) },
                 enabled = !rolling && !game.active && game.winner == CrapsWinner.NONE && model.game.bankroll >= amount,
                 modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -135,13 +141,15 @@ private fun ColumnScope.CrapsControls(model: BlackjackViewModel, rolling: Boolea
         Text(when {
             rolling -> "ROLLING…"
             game.winner != CrapsWinner.NONE -> "COLLECTING…"
+            game.opponentShooter && game.active -> "OPPONENT · POINT " + game.point
+            game.opponentShooter -> "OPPONENT ROLLS · $" + game.bet
             game.active -> "ROLL · POINT " + game.point
             else -> "ROLL · $" + game.bet
         }, fontSize = 13.sp, fontWeight = FontWeight.Black)
     }
     TextButton(onClick = { help = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("RULES", fontSize = 11.sp) }
     if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text("Street craps") }, text = {
-        Text("Choose your stake and tap Roll or the dice hand. Your opponent matches the stake.\n\n7 or 11 wins the first roll; 2, 3 or 12 loses. Any other total sets the point. Make it again before rolling 7 to win.\n\nThe winner reaches in and collects the bills. Virtual money only.")
+        Text("Choose your stake and tap Roll or the dice hand. Your opponent matches the stake.\n\nThe shooter wins on 7 or 11 on the first roll, and loses on 2, 3 or 12. Any other total sets the point. Make it before a 7 to win.\n\nThe winner collects the bills and shoots next. When your opponent shoots, you cover their bet; they keep rolling automatically until the hand is decided. Virtual money only.")
     }, confirmButton = { TextButton(onClick = { help = false }) { Text("CLOSE") } })
 }
 
@@ -165,6 +173,11 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         val handHeight = handWidth * 4f / 3f
         val potY = maxHeight * .13f
         val opponentHeight = (maxHeight * .25f).coerceAtMost(100.dp)
+        val opponentThrowing = game.opponentShooter && !collecting && (!rolling || throwProgress < .50f)
+        val opponentHandWidth = minOf(maxWidth * .28f, maxHeight * .27f)
+        val opponentHandHeight = opponentHandWidth * 4f / 3f
+        val opponentHandTop = 5.dp + opponentHeight * .24f
+        val opponentPalmY = opponentHandTop + opponentHandHeight * .82f
         // The opponent reaches from the lower torso and receives the pot there.
         // Perspective shrinks the hand and bills together as they move away.
         val travel = if (direction < 0) maxHeight * .63f - (5.dp + opponentHeight * 1.35f)
@@ -175,10 +188,10 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         val billScale = if (direction < 0) 1f - .66f * billDistance else 1f
         Column(Modifier.align(Alignment.TopCenter).padding(top = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            CrapsOpponent(model.room, game.winner, Modifier.size(112.dp, opponentHeight))
+            CrapsOpponent(model.room, game.winner, Modifier.size(112.dp, opponentHeight), opponentThrowing)
 
         }
-        Text(if (game.point == 0) "COME OUT" else "POINT " + game.point,
+        Text(if (game.point == 0) { if(game.opponentShooter) "OPPONENT ROLLS" else "YOUR ROLL" } else "POINT " + game.point,
             color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black,
             modifier = Modifier.align(Alignment.TopStart).padding(12.dp)
                 .background(Color(0xCC211B16), RoundedCornerShape(7.dp)).padding(7.dp))
@@ -189,12 +202,15 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
             val flight = ((throwProgress - .46f) / .44f).coerceIn(0f, 1f)
             val airborne = rolling && throwProgress in .46f.. .90f
             val landingY = size.height * .44f
-            val startY = size.height * .87f
+            val startY = if(game.opponentShooter) opponentPalmY.toPx() else size.height * .87f
             val y = if (airborne) startY + (landingY - startY) * flight - sin(flight * PI).toFloat() * size.height * .14f else landingY
-            if (!rolling || throwProgress >= .46f) {
+            if ((!rolling && !opponentThrowing) || (rolling && throwProgress >= .46f)) {
                 repeat(2) { i ->
-                    val x = size.width * (if (i == 0) .39f else .63f)
-                    val side = min(size.width * .145f, size.height * .145f)
+                    val landingX = size.width * (if (i == 0) .39f else .63f)
+                    val startX = size.width * (if(i==0) .465f else .535f)
+                    val x = if(airborne&&game.opponentShooter) startX+(landingX-startX)*flight else landingX
+                    val side = min(size.width * .145f, size.height * .145f) *
+                        if(airborne&&game.opponentShooter) .38f+.62f*flight else 1f
                     val value = if (airborne) ((throwProgress * 40).toInt() + i * 3) % 6 + 1
                         else if (i == 0) game.dieOne else game.dieTwo
                     drawDie(value, Offset(x, y + i * side * .13f), side,
@@ -259,11 +275,23 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         }
         val shake = if (rolling && throwProgress < .46f) sin(throwProgress * 70f) else 0f
         val frame = if (rolling && throwProgress >= .46f) 7 else 2
-        HandSprite(hands, frame, Modifier.align(Alignment.BottomCenter)
+        if(!game.opponentShooter) HandSprite(hands, frame, Modifier.align(Alignment.BottomCenter)
             .offset(x = (shake * 6).dp, y = if (collecting) handHeight else 18.dp)
             .size(handWidth, handHeight).rotate(shake * 11f)
             .testTag("craps-hand").semantics { contentDescription = "Tattooed hand holding dice; tap to roll" }
             .clickable(enabled = canShoot, onClick = shoot))
+        if(opponentThrowing) {
+            OpponentHand(model.room,false,(maxWidth-opponentHandWidth)/2+(shake*3).dp,
+                opponentHandTop+(shake*2).dp,opponentHandWidth,opponentHandHeight,
+                (maxWidth-opponentHeight)/2,5.dp+opponentHeight*.50f,
+                opponentHeight * if(model.room==RoomStyle.WEST) .44f else .39f,
+                Modifier.fillMaxSize().testTag("craps-opponent-dice-hand").clickable(enabled=canShoot,onClick=shoot),
+                description="Opponent holding and throwing dice")
+            if(!rolling||throwProgress<.46f) Canvas(Modifier.fillMaxSize().testTag("craps-held-dice")) {
+                repeat(2) { i -> drawDie(i+2,Offset(size.width*(if(i==0).465f else .535f)+shake*3.dp.toPx(),
+                    opponentPalmY.toPx()+shake*2.dp.toPx()),size.width*.056f,shake*14f+i*15f) }
+            }
+        }
     }
 }
 
@@ -279,7 +307,7 @@ private fun HandSprite(atlas: ImageBitmap, frame: Int, modifier: Modifier) {
 }
 
 @Composable
-private fun CrapsOpponent(room: RoomStyle, winner: CrapsWinner, modifier: Modifier) {
+private fun CrapsOpponent(room: RoomStyle, winner: CrapsWinner, modifier: Modifier, reaching:Boolean=false) {
     val context = LocalContext.current
     var sheet by remember(room) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(room) { sheet = withContext(Dispatchers.Default) { decodeDealer(context, room) } }
@@ -290,7 +318,7 @@ private fun CrapsOpponent(room: RoomStyle, winner: CrapsWinner, modifier: Modifi
         sheet?.let {
             val side = minOf(size.width, size.height)
             val left = (size.width - side) / 2
-            if (winner == CrapsWinner.OPPONENT) {
+            if (winner == CrapsWinner.OPPONENT || reaching) {
                 // The moving foreground arm replaces this pose's original arm.
                 // Keeping the matching shoulder avoids a crossed-arm third hand.
                 val body = Path().apply {
@@ -330,7 +358,8 @@ private fun DrawScope.drawDie(value: Int, center: Offset, side: Float, angle: Fl
 
 @Composable
 private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handTop: Dp,
-    handWidth: Dp, handHeight: Dp, originLeft: Dp, originTop: Dp, originWidth: Dp, modifier: Modifier) {
+    handWidth: Dp, handHeight: Dp, originLeft: Dp, originTop: Dp, originWidth: Dp, modifier: Modifier,
+    description:String="Opponent hand collecting the money") {
     val context = LocalContext.current
     var arm by remember(room) { mutableStateOf<android.graphics.Bitmap?>(null) }
     val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG) }
@@ -378,7 +407,7 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handT
         }
     }
     Canvas(modifier.semantics {
-        contentDescription = if (arm == null) "Loading opponent hand" else "Opponent hand collecting the money"
+        contentDescription = if (arm == null) "Loading opponent hand" else description
     }) {
         arm?.let { bitmap ->
             val width = handWidth.toPx()

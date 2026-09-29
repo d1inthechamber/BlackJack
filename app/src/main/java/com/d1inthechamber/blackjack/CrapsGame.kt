@@ -29,6 +29,8 @@ internal class CrapsGame(private val rng: Random = Random()) : Serializable {
     var winner = CrapsWinner.NONE
     var centerPot = 0
     var collectionPulse = 0
+    // Explicit serialVersionUID keeps v3.5 saves compatible; missing field = false.
+    var opponentShooter = false
     var message = "Choose a bill, then tap the hand to shoot."
 
     fun setBet(amount: Int): Boolean {
@@ -56,16 +58,17 @@ internal class CrapsGame(private val rng: Random = Random()) : Serializable {
         rolls++
         val total = first + second
         var payout = 0
+        val shooter = if (opponentShooter) CrapsWinner.OPPONENT else CrapsWinner.PLAYER
+        val other = if (opponentShooter) CrapsWinner.PLAYER else CrapsWinner.OPPONENT
         if (point == 0) {
             when (total) {
                 7, 11 -> {
-                    winner = CrapsWinner.PLAYER
-                    payout = centerPot
-                    message = "$total on the come-out • You win \$${centerPot}"
+                    winner = shooter
+                    message = "$total • Shooter wins"
                 }
                 2, 3, 12 -> {
-                    winner = CrapsWinner.OPPONENT
-                    message = "Craps $total • The character wins the pile"
+                    winner = other
+                    message = "Craps $total • Shooter loses"
                 }
                 else -> {
                     point = total
@@ -75,18 +78,18 @@ internal class CrapsGame(private val rng: Random = Random()) : Serializable {
         } else {
             when (total) {
                 point -> {
-                    winner = CrapsWinner.PLAYER
-                    payout = centerPot
-                    message = "Point $point made • You win \$${centerPot}"
+                    winner = shooter
+                    message = "Point $point made • Shooter wins"
                 }
                 7 -> {
-                    winner = CrapsWinner.OPPONENT
-                    message = "Seven-out • The character wins the pile"
+                    winner = other
+                    message = "Seven-out • Shooter loses"
                 }
                 else -> message = "$total • Point stays $point"
             }
         }
         if (winner != CrapsWinner.NONE) {
+            if (winner == CrapsWinner.PLAYER) payout = centerPot
             active = false
             collectionPulse++
         }
@@ -95,6 +98,7 @@ internal class CrapsGame(private val rng: Random = Random()) : Serializable {
 
     fun finishCollection() {
         if (winner == CrapsWinner.NONE) return
+        opponentShooter = winner == CrapsWinner.OPPONENT
         winner = CrapsWinner.NONE
         centerPot = 0
         point = 0

@@ -47,7 +47,11 @@ class FoldableSmokeTest {
     private fun checkCardTables(mode:String) {
         rule.onNodeWithTag("nav-games").performClick()
         rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
-        visibleInsideRoot("sol-stock");visibleInsideRoot("sol-new");visibleInsideRoot("sol-hint")
+        visibleInsideRoot("sol-stock");visibleInsideRoot("sol-new");visibleInsideRoot("sol-hint");visibleInsideRoot("sol-draw")
+        val stock=rule.onNodeWithTag("sol-stock").fetchSemanticsNode().boundsInRoot
+        val foundation=rule.onNodeWithTag("sol-foundation-3").fetchSemanticsNode().boundsInRoot
+        assertTrue("Right-hand stock in $mode",stock.left>foundation.right)
+        assertTrue("Cards stay compact in $mode",stock.width/rule.activity.resources.displayMetrics.density<=64.5f)
         repeat(7) { visibleInsideRoot("sol-column-$it") }
         capture("solitaire-$mode")
         rule.onNodeWithTag("nav-games").performClick()
@@ -76,14 +80,17 @@ class FoldableSmokeTest {
             resize("1840x2208",420)
             visibleInsideRoot("nav-games");visibleInsideRoot("nav-rooms");visibleInsideRoot("settings-button")
             rule.onNodeWithText("CRAPS").performScrollTo().performClick()
-            visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("unfolded");checkCardTables("unfolded")
+            visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");assertTrue("Keep craps controls below the street",
+                rule.onNodeWithTag("craps-roll").fetchSemanticsNode().boundsInRoot.top>=rule.onNodeWithTag("craps-street").fetchSemanticsNode().boundsInRoot.bottom);capture("unfolded");checkCardTables("unfolded")
 
             resize("1080x2092",420)
-            visibleInsideRoot("nav-games");visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("folded");checkCardTables("folded")
+            visibleInsideRoot("nav-games");visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");assertTrue("Keep craps controls below the street",
+                rule.onNodeWithTag("craps-roll").fetchSemanticsNode().boundsInRoot.top>=rule.onNodeWithTag("craps-street").fetchSemanticsNode().boundsInRoot.bottom);capture("folded");checkCardTables("folded")
 
             rule.runOnUiThread{rule.activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE}
             rule.waitUntil(10000){rule.activity.resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE}
-            visibleInsideRoot("nav-games");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("landscape");checkCardTables("landscape")
+            visibleInsideRoot("nav-games");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");assertTrue("Keep craps controls below the street",
+                rule.onNodeWithTag("craps-roll").fetchSemanticsNode().boundsInRoot.top>=rule.onNodeWithTag("craps-street").fetchSemanticsNode().boundsInRoot.bottom);capture("landscape");checkCardTables("landscape")
         }finally{
             rule.runOnUiThread{rule.activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED}
             shell("wm size reset");shell("wm density reset")

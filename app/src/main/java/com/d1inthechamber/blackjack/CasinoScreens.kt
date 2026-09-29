@@ -60,12 +60,16 @@ fun GameRoot(model:BlackjackViewModel) {
     var confirmNew by remember {mutableStateOf(false)}
     var beforeUtility by rememberSaveable {mutableStateOf("LOBBY")}
     var foreground by remember {mutableStateOf(true)}
+    val context=LocalContext.current
+    val audio=remember(context){CasinoAudio(context.applicationContext)}
+    DisposableEffect(audio){onDispose{audio.close()}}
+    SideEffect { audio.enabled=model.settings.effects&&foreground }
     val owner=LocalLifecycleOwner.current
     DisposableEffect(owner){val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_STOP)foreground=false else if(event==Lifecycle.Event.ON_START)foreground=true};owner.lifecycle.addObserver(observer);onDispose{owner.lifecycle.removeObserver(observer)}}
-    CompositionLocalProvider(LocalRoomStyle provides model.room, LocalCasinoSettings provides model.settings) {
+    CompositionLocalProvider(LocalRoomStyle provides model.room, LocalCasinoSettings provides model.settings, LocalCasinoAudio provides audio) {
         MaterialTheme(colorScheme=darkColorScheme(primary=model.room.accent,secondary=model.room.button)) {
-            val lobby={model.save();screen="LOBBY"}
-            val enter:(String)->Unit={model.enter(it);screen=it}
+            val lobby={audio.play(CasinoSound.CLICK);model.save();screen="LOBBY"}
+            val enter:(String)->Unit={audio.play(CasinoSound.CLICK);model.enter(it);screen=it}
             BackHandler(screen!="LOBBY"){if(screen=="SETTINGS"||screen=="ROOMS")screen=beforeUtility else lobby()}
             Box(Modifier.fillMaxSize().background(Color(0xFF100D14)).safeDrawingPadding()) {
             Box(Modifier.fillMaxSize().padding(top=58.dp)) {
@@ -116,11 +120,12 @@ fun GameRoot(model:BlackjackViewModel) {
 
 @Composable
 private fun CasinoNavigation(screen:String,onGames:()->Unit,onRooms:()->Unit,onSettings:()->Unit,modifier:Modifier=Modifier){
+    val audio=LocalCasinoAudio.current
     Surface(modifier.fillMaxWidth().height(50.dp),color=Color(0xF019141D),shape=RoundedCornerShape(15.dp),border=BorderStroke(1.dp,LocalRoomStyle.current.accent.copy(alpha=.65f))){
         Row(Modifier.fillMaxSize().padding(4.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)){
             fun active(name:String)=when(name){"GAMES"->screen=="LOBBY";else->screen==name}
             listOf(Triple("GAMES","nav-games",onGames),Triple("ROOMS","nav-rooms",onRooms),Triple("SETTINGS","settings-button",onSettings)).forEach{(label,tag,action)->
-                TextButton(onClick=action,modifier=Modifier.weight(1f).fillMaxHeight().testTag(tag),colors=ButtonDefaults.textButtonColors(containerColor=if(active(label))LocalRoomStyle.current.accent.copy(alpha=.22f) else Color.Transparent,contentColor=if(active(label))Color.White else LocalRoomStyle.current.accent)){Text(label,fontSize=11.sp,fontWeight=FontWeight.Black)}
+                TextButton(onClick={audio?.play(CasinoSound.CLICK);action()},modifier=Modifier.weight(1f).fillMaxHeight().testTag(tag),colors=ButtonDefaults.textButtonColors(containerColor=if(active(label))LocalRoomStyle.current.accent.copy(alpha=.22f) else Color.Transparent,contentColor=if(active(label))Color.White else LocalRoomStyle.current.accent)){Text(label,fontSize=11.sp,fontWeight=FontWeight.Black)}
             }
         }
     }
@@ -158,6 +163,7 @@ internal fun slotSymbols(room:RoomStyle):List<String> = when(room){
 @Composable
 internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
     val game=model.casino.slots
+    val audio=LocalCasinoAudio.current
     var spinning by remember{mutableStateOf(false)}
     val reelPositions=remember(game){List(3){Animatable(game.reels[it].toFloat())}}
     var help by remember{mutableStateOf(false)}
@@ -169,15 +175,22 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
                     launch {
                         val start=position.value.toInt()
                         val target=start+20+i*5+(game.reels[i]-start%5+5)%5
-                        position.animateTo(target.toFloat(),tween(1700+i*300,easing=CubicBezierEasing(.10f,.55f,.18f,1f)))
+                        var tick=start
+                        position.animateTo(target.toFloat(),tween(1700+i*300,easing=CubicBezierEasing(.10f,.55f,.18f,1f))) {
+                            val next=floor(value).toInt()
+                            if(next!=tick){audio?.play(CasinoSound.TICK,.18f,.94f+i*.07f);tick=next}
+                        }
+                        audio?.play(CasinoSound.REEL_STOP,.45f)
                         position.snapTo(game.reels[i].toFloat())
                     }
                 }
             }
             spinning=false
+            if(game.returned>game.bet)audio?.play(CasinoSound.WIN,.65f)
+            else if(game.returned>0)audio?.play(CasinoSound.CHIPS)
         }
     }
-    val pull:()->Unit={if(!spinning&&model.game.bankroll>=game.bet){model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};spinning=true}}
+    val pull:()->Unit={if(!spinning&&model.game.bankroll>=game.bet){audio?.play(CasinoSound.LEVER);model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};spinning=true}}
     CasinoFrame(model,"CHAOS SLOTS",onBack){
 
         Row(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically){
@@ -213,7 +226,7 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
         BanditLever(spinning,!spinning&&model.game.bankroll>=game.bet,pull,Modifier.width(46.dp).height(290.dp))
         }
         Text(if(spinning)"Let them roll…" else game.message,color=if(game.returned>0)model.room.accent else Color.White,fontSize=18.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(10,25,50).forEach{n->OutlinedButton(onClick={model.change{game.bet=n}},enabled=!spinning,modifier=Modifier.weight(1f)){Text(if(n==game.bet)"● $n" else "$n")}}}
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(10,25,50).forEach{n->OutlinedButton(onClick={audio?.play(CasinoSound.CHIPS,.4f);model.change{game.bet=n}},enabled=!spinning,modifier=Modifier.weight(1f)){Text(if(n==game.bet)"● $n" else "$n")}}}
         Button(onClick=pull,enabled=!spinning&&model.game.bankroll>=game.bet,modifier=Modifier.fillMaxWidth().height(60.dp).testTag("slot-spin")){Text(if(spinning)"SPINNING…" else "SPIN • ${game.bet} CHIPS",fontSize=18.sp,fontWeight=FontWeight.Black)}
         TextButton(onClick={help=true}){Text("PAY TABLE & RULES")}
 

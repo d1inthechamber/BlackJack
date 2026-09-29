@@ -1,4 +1,4 @@
-# Casino Chaos 3.5
+# Casino Chaos 3.6
 
 Expands Royal Felt / BlackJack into a five-game, seven-room offline casino. Package ID and development signing key remain unchanged for sideload updates. This is a development APK, not a Play Store production release.
 
@@ -57,3 +57,10 @@ Generated Green Room art used the built-in image tool: reference-based 4x3 cel-a
 - Removed room-host names and repeated descriptive text. Existing approved assets, package ID, public development signing certificate, and serialized game shapes are retained.
 
 Validation must include unit tests, lint, phone interaction tests, and screenshots of craps collection in all seven rooms plus poker and solitaire in folded, unfolded and landscape layouts. This remains an offline virtual-money development build.
+
+## 3.6 sound, opponent rolls and foldable controls
+
+- Craps winner shoots the next hand. Opponents hold and throw dice from their own attached character arm, then continue point rolls automatically. A new wager still requires the player to start it. Payouts follow the actual winning side, with no repeated wallet credit. The same centered portrait composition is used folded and unfolded.
+- Solitaire puts the stock and primary draw/recycle control on the right and limits card width to 64 dp. A win gathers all 52 cards into one stack with an original celebration cue. A dead deal triggers an alert and a short minor-key cue; undo and new deal remain available. Exposed-move analysis ignores reversible cycles, includes foundation reversals and exact draw-three recycling, and never declares a dead deal when its bounded search is inconclusive.
+- Shared offline audio covers card touches/moves, shuffling, chips, cash collection, dice shaking/landing, the slot lever, reel ticks/stops and results. All effects obey the existing Effects switch and stop in the background. Original synthesized PCM cues require no additional licensed assets or network downloads.
+- Existing approved artwork, package ID and update signing certificate are retained. A missing opponent-shooter field in an older craps save defaults to the player; serialized solitaire class shape is unchanged.

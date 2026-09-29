@@ -2,7 +2,7 @@ name: Build Casino Chaos APK
 
 on:
   push:
-    branches: [main, codex/casino-chaos-v3.5]
+    branches: [main, codex/casino-chaos-v3.6]
   workflow_dispatch:
 
 permissions:
@@ -38,12 +38,12 @@ jobs:
           test -n "$apksigner_path"
           "$apksigner_path" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Stage candidate APK
-        run: cp app/build/outputs/apk/release/app-release.apk casino-chaos-v3.5-candidate.apk
+        run: cp app/build/outputs/apk/release/app-release.apk casino-chaos-v3.6-candidate.apk
       - name: Upload candidate APK
         uses: actions/upload-artifact@v4
         with:
           name: signed-release-candidate
-          path: casino-chaos-v3.5-candidate.apk
+          path: casino-chaos-v3.6-candidate.apk
           if-no-files-found: error
           retention-days: 7
       - name: Upload validation reports
@@ -103,6 +103,17 @@ jobs:
           path: screenshots/chaos-craps*.png
           if-no-files-found: error
 
+      - name: Upload sound and interaction update screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interaction-update-evidence
+          path: |
+            screenshots/chaos-solitaire*.png
+            screenshots/chaos-craps-opponent-hold.png
+            screenshots/chaos-craps-opponent-throw.png
+          if-no-files-found: error
+
   foldable-tests:
     name: Pixel Fold-equivalent layout tests
     runs-on: ubuntu-latest
@@ -152,11 +163,11 @@ jobs:
         with:
           name: signed-release-candidate
       - name: Name install file
-        run: mv casino-chaos-v3.5-candidate.apk casino-chaos-v3.5.apk
+        run: mv casino-chaos-v3.6-candidate.apk casino-chaos-v3.6.apk
       - name: Upload tested APK
         uses: actions/upload-artifact@v4
         with:
-          name: casino-chaos-apk-v3.5
-          path: casino-chaos-v3.5.apk
+          name: casino-chaos-apk-v3.6
+          path: casino-chaos-v3.6.apk
           if-no-files-found: error
           retention-days: 30

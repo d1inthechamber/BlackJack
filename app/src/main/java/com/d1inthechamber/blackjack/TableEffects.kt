@@ -15,28 +15,24 @@ import kotlin.math.sin
 
 @Composable
 fun TableSounds(game: BlackjackState, enabled: Boolean, cardPulse:Int=game.drawPulse) {
-    val context = LocalContext.current
-    val pool = remember { SoundPool.Builder().setMaxStreams(3).setAudioAttributes(
-        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build() }
-    var card by remember { mutableIntStateOf(0) }
-    var coin by remember { mutableIntStateOf(0) }
-    var loaded by remember { mutableIntStateOf(0) }
-    DisposableEffect(pool) {
-        pool.setOnLoadCompleteListener { _, _, status -> if (status == 0) loaded++ }
-        card = pool.load(context, R.raw.card_slide, 1)
-        coin = pool.load(context, R.raw.chip_clink, 1)
-        onDispose { pool.release() }
-    }
+    val audio=LocalCasinoAudio.current
     var lastDraw by remember { mutableIntStateOf(cardPulse) }
     var lastBet by remember { mutableIntStateOf(game.bet) }
     var lastBank by remember { mutableDoubleStateOf(game.bankroll) }
-    LaunchedEffect(cardPulse, game.bet, game.bankroll, enabled) {
-        if (enabled && loaded == 2) {
-            if (cardPulse != lastDraw) pool.play(card, .45f, .45f, 1, 0, 1f)
-            if (game.bet > lastBet || game.bankroll != lastBank) pool.play(coin, .3f, .3f, 1, 0, 1f)
+    var wasFinished by remember { mutableStateOf(game.finished) }
+    var wasShuffling by remember { mutableStateOf(game.shuffling) }
+    LaunchedEffect(cardPulse, game.bet, game.bankroll, game.finished, game.shuffling, enabled) {
+        if (enabled) {
+            if (cardPulse != lastDraw) audio?.play(CasinoSound.CARD)
+            if (game.bet > lastBet || game.bankroll != lastBank) audio?.play(CasinoSound.CHIPS,.45f)
+            if(game.shuffling&&!wasShuffling)audio?.play(CasinoSound.SHUFFLE)
+            if(game.finished&&!wasFinished) {
+                val net=game.lastRound?.net ?: 0.0
+                audio?.play(when {net>0->CasinoSound.WIN;net<0->CasinoSound.LOSE;else->CasinoSound.CLICK},.45f)
+            }
         }
         lastDraw = cardPulse; lastBet = game.bet; lastBank = game.bankroll
+        wasFinished=game.finished;wasShuffling=game.shuffling
     }
 }
 

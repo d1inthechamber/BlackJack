@@ -20,6 +20,21 @@ import kotlinx.coroutines.delay
 internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
     val g = model.casino.poker
     val revision = model.revision
+    val audio=LocalCasinoAudio.current
+    var previousHand by remember(g) { mutableIntStateOf(g.hand) }
+    var previousBoard by remember(g) { mutableIntStateOf(g.board.size) }
+    var previousPot by remember(g) { mutableIntStateOf(g.pot) }
+    var wasActive by remember(g) { mutableStateOf(g.active) }
+    LaunchedEffect(revision) {
+        if(g.hand!=previousHand)audio?.play(CasinoSound.SHUFFLE)
+        else if(g.board.size>previousBoard)audio?.play(CasinoSound.CARD)
+        if(g.pot>previousPot)audio?.play(CasinoSound.CHIPS,.45f)
+        if(wasActive&&!g.active&&g.seats.isNotEmpty()) {
+            val won=g.seats[0].expression==3||g.message.startsWith("${g.seats[0].name} wins ")
+            audio?.play(if(won)CasinoSound.WIN else CasinoSound.LOSE,.45f)
+        }
+        previousHand=g.hand;previousBoard=g.board.size;previousPot=g.pot;wasActive=g.active
+    }
     var rules by remember { mutableStateOf(false) }
     var raiseTarget by remember(g.hand, g.actor, g.currentBet) { mutableIntStateOf(g.currentBet + g.minRaise) }
     LaunchedEffect(g, g.actor, g.active, revision) {
@@ -39,7 +54,7 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                     Text("TEXAS HOLD’EM · 5 / 10", color = model.room.accent, fontSize = 12.sp)
                     Button(onClick = {
                         val amount = minOf(500, model.game.bankroll.toInt())
-                        if (amount >= 100) model.change { g.sit(amount, model.room.ordinal); model.game.bankroll -= amount }
+                        if (amount >= 100) { model.change { g.sit(amount, model.room.ordinal); model.game.bankroll -= amount };audio?.play(CasinoSound.CHIPS) }
                     }, enabled = model.game.bankroll >= 100,
                         modifier = Modifier.fillMaxWidth().height(50.dp).testTag("poker-buyin")) {
                         Text("TAKE A SEAT · $" + minOf(500, model.game.bankroll.toInt()))
@@ -55,8 +70,8 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                     if (g.active) {
                         val yourTurn = g.actor == 0
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlinedButton(onClick = { model.change { g.act(PokerAction.FOLD) } }, enabled = yourTurn, modifier = Modifier.weight(1f)) { Text("FOLD") }
-                            Button(onClick = { model.change { g.act(PokerAction.CALL) } }, enabled = yourTurn, modifier = Modifier.weight(1f).testTag("poker-call")) { Text(if (g.toCall(0) == 0) "CHECK" else "CALL $" + minOf(g.toCall(0), p.stack)) }
+                            OutlinedButton(onClick = { audio?.play(CasinoSound.CARD);model.change { g.act(PokerAction.FOLD) } }, enabled = yourTurn, modifier = Modifier.weight(1f)) { Text("FOLD") }
+                            Button(onClick = { if(g.toCall(0)==0)audio?.play(CasinoSound.CLICK);model.change { g.act(PokerAction.CALL) } }, enabled = yourTurn, modifier = Modifier.weight(1f).testTag("poker-call")) { Text(if (g.toCall(0) == 0) "CHECK" else "CALL $" + minOf(g.toCall(0), p.stack)) }
                         }
                         if (yourTurn && g.canRaise(0)) {
                             val cap = p.stack + p.streetBet
@@ -71,7 +86,7 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                     } else {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Button(onClick = { model.change { g.startHand() } }, enabled = p.stack > 0, modifier = Modifier.weight(1f).testTag("poker-deal")) { Text(if (g.hand == 0) "DEAL" else "NEXT HAND") }
-                            OutlinedButton(onClick = { model.change { model.game.bankroll += g.cashOut() } }, modifier = Modifier.weight(1f).testTag("poker-cashout"), contentPadding = PaddingValues(horizontal = 6.dp)) { Text("CASH OUT", maxLines = 1, fontSize = 12.sp) }
+                            OutlinedButton(onClick = { model.change { model.game.bankroll += g.cashOut() };audio?.play(CasinoSound.CHIPS) }, modifier = Modifier.weight(1f).testTag("poker-cashout"), contentPadding = PaddingValues(horizontal = 6.dp)) { Text("CASH OUT", maxLines = 1, fontSize = 12.sp) }
                         }
                     }
                 }
