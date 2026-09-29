@@ -6,15 +6,15 @@ plugins {
 
 android {
     namespace = "com.d1inthechamber.blackjack"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.d1inthechamber.blackjack"
         minSdk = 24
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        targetSdk = 35
-        versionCode = 22
-        versionName = "3.6"
+        targetSdk = 36
+        versionCode = 23
+        versionName = "3.6.1"
     }
 
     // Public development key: keeps sideloaded test updates compatible. Not a release key.
@@ -31,6 +31,13 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        // Google Play bundles are signed privately after CI validation. Never
+        // fall back to the public development key for a store upload.
+        create("play") {
+            initWith(getByName("release"))
+            signingConfig = null
+            matchingFallbacks += listOf("release")
         }
     }
 

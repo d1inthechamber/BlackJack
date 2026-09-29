@@ -3,3 +3,8 @@
 local.properties
 .idea/
 *.iml
+*.aab
+*.jks
+*.keystore
+*upload-key*
+signing-private/

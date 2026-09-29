@@ -3,6 +3,7 @@
     <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/Theme.BlackJack"
         android:label="Casino Chaos"
+        android:appCategory="game"
         android:allowBackup="true"
         android:supportsRtl="true">
         <activity

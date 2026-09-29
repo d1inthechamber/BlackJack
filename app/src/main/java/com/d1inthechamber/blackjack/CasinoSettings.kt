@@ -34,6 +34,8 @@ internal val LocalCasinoSettings=staticCompositionLocalOf{CasinoSettings()}
 @Composable
 internal fun SettingsPage(model:BlackjackViewModel,onBack:()->Unit){
     val settings=model.settings
+    var showPrivacy by remember { mutableStateOf(false) }
+    if (showPrivacy) PrivacyPolicyDialog { showPrivacy = false }
     CasinoFrame(model,"SETTINGS",onBack){
         Text("AUDIO & ATMOSPHERE",color=model.room.accent,fontSize=20.sp,modifier=Modifier.testTag("settings-content"))
         Text("Every switch uses a high-contrast label and saves immediately.",color=Color(0xFFE7E2EA),fontSize=13.sp)
@@ -43,7 +45,27 @@ internal fun SettingsPage(model:BlackjackViewModel,onBack:()->Unit){
             }
         }
         Text("Dealing motion stays on so every card remains easy to follow. Choose Rooms from the main navigation to change the cast and table.",color=Color(0xFFE7E2EA),fontSize=13.sp)
+        TextButton(onClick = { showPrivacy = true }) { Text("PRIVACY POLICY") }
     }
+}
+
+@Composable
+private fun PrivacyPolicyDialog(onClose: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Privacy Policy") },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Casino Chaos · Updated September 29, 2026")
+                Text("Casino Chaos is an offline game. The app does not collect or send personal information, gameplay activity, device identifiers, location, contacts, or analytics to the developer or other companies. It has no ads, accounts, tracking SDKs, or in-app purchases.")
+                Text("Saved games, virtual balances, room choices, and sound settings are stored in the app's private storage on your device. Android may include these files in system backup or device transfer, depending on your device settings. The developer cannot access those backups.")
+                Text("You can delete local game data using Android Settings > Apps > Casino Chaos > Storage > Clear storage. This permanently resets your game progress. Manage any Android backups through your device or Google account settings.")
+                Text("Google Play handles the app purchase, delivery, and any store diagnostics under Google's own privacy terms. Casino Chaos does not receive payment card details.")
+                Text("For privacy questions, use the developer contact listed under App support on Casino Chaos's Google Play listing. If you contact support, information you choose to provide is used to respond to your request.")
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("CLOSE") } }
+    )
 }
 
 @Composable
