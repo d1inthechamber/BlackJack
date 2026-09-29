@@ -351,10 +351,38 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handT
         val rowHeight = ((rows[1]-rows[0]) * it.height / 1086f).roundToInt()
         val patchX = when(room) { RoomStyle.CARNIVAL -> .24f; RoomStyle.GREEN -> .20f; else -> .18f }
         android.graphics.Bitmap.createBitmap(it.asAndroidBitmap(), (cw*patchX).roundToInt(),
-            rowTop + (rowHeight*.50f).roundToInt(), (cw*.06f).roundToInt(), (rowHeight*.08f).roundToInt())
+            rowTop + (rowHeight*.50f).roundToInt(), (cw*.06f).roundToInt(), (rowHeight*.08f).roundToInt()).asImageBitmap()
     } }
-    val sleevePaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG) }
     Canvas(modifier) {
+        // Keep every sleeve coordinate inside the scene's drawing layer. The
+        // regular image path remains visible even at the farthest reach frame.
+        val left = handLeft.toPx()
+        val top = handTop.toPx()
+        val width = handWidth.toPx()
+        val height = handHeight.toPx()
+        val anchorX = left + shoulderX.toPx()
+        val anchorY = top + shoulderY.toPx()
+        val anchorHalf = shoulderHalfWidth.toPx()
+        val jointLeft = left + width*.34f
+        val jointRight = left + width*.81f
+        val jointY = top + height*.08f
+        val extension = Path().apply {
+            moveTo(anchorX-anchorHalf,anchorY);lineTo(anchorX+anchorHalf,anchorY)
+            lineTo(jointRight,jointY);lineTo(jointLeft,jointY);close()
+        }
+        sleeve?.let { texture ->
+            val x = min(anchorX-anchorHalf,jointLeft)
+            val y = min(anchorY,jointY)
+            val w = max(anchorX+anchorHalf,jointRight)-x
+            val h = abs(jointY-anchorY).coerceAtLeast(1f)
+            clipPath(extension) {
+                drawImage(texture,srcSize=IntSize(texture.width,texture.height),
+                    dstOffset=IntOffset(x.roundToInt(),y.roundToInt()),
+                    dstSize=IntSize(w.roundToInt().coerceAtLeast(1),h.roundToInt().coerceAtLeast(1)),
+                    filterQuality=FilterQuality.Medium)
+            }
+        }
+        drawPath(extension,Color(0xFF514032),style=Stroke(.6.dp.toPx()))
         inset(handLeft.toPx(), handTop.toPx(), size.width-handLeft.toPx()-handWidth.toPx(),
             size.height-handTop.toPx()-handHeight.toPx()) {
         atlas?.let { sheet ->
@@ -363,24 +391,6 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handT
             val cw = sheet.width / 4
             val rowTop = (rows[0] * sheet.height / 1086f).roundToInt()
             val rowHeight = ((rows[1]-rows[0]) * sheet.height / 1086f).roundToInt()
-            // Taper the sleeve into the character's lower torso, keeping the
-            // face clear and the original cuff and tattoos at their proportions.
-            val anchorX = shoulderX.toPx()
-            val anchorY = shoulderY.toPx()
-            val anchorHalf = shoulderHalfWidth.toPx()
-            val extension = Path().apply {
-                moveTo(anchorX-anchorHalf,anchorY)
-                lineTo(anchorX+anchorHalf,anchorY)
-                lineTo(size.width*.81f,size.height*.08f)
-                lineTo(size.width*.34f,size.height*.08f);close()
-            }
-            sleeve?.let { texture ->
-                drawContext.canvas.nativeCanvas.drawBitmapMesh(texture, 1, 1, floatArrayOf(
-                    anchorX-anchorHalf,anchorY, anchorX+anchorHalf,anchorY,
-                    size.width*.34f,size.height*.08f, size.width*.81f,size.height*.08f),
-                    0, null, 0, sleevePaint)
-            }
-            drawPath(extension,Color(0xFF514032),style=Stroke(.6.dp.toPx()))
             // The outer forearm boundary differs by costume. These small masks
             // exclude adjacent torso pixels without altering the character art.
             val edge = when(room) {
