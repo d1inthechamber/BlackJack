@@ -56,8 +56,15 @@ class FoldableSmokeTest {
         rule.runOnUiThread { if(!m.casino.poker.seated)m.change { m.casino.poker.sit(500,m.room.ordinal);m.game.bankroll-=500 } }
         rule.waitUntil(15000) { rule.onAllNodes(SemanticsMatcher.expectValue(
             androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==3 }
-        visibleInsideRoot("poker-table");visibleInsideRoot("poker-deal")
+        visibleInsideRoot("poker-table")
+        if (!m.casino.poker.active) visibleInsideRoot("poker-deal")
         rule.runOnUiThread { m.change { m.casino.poker=PokerGame().apply { sit(500,m.room.ordinal);startHand() } } }
+        rule.waitForIdle()
+        visibleInsideRoot("poker-call")
+        visibleInsideRoot("poker-board-cards");visibleInsideRoot("poker-human-cards")
+        val board=rule.onNodeWithTag("poker-board-cards").fetchSemanticsNode().boundsInRoot
+        val hand=rule.onNodeWithTag("poker-human-cards").fetchSemanticsNode().boundsInRoot
+        assertTrue("Community cards and player hand must not overlap in $mode",board.bottom<=hand.top)
         capture("poker-$mode")
         rule.onNodeWithTag("nav-games").performClick()
         rule.onNodeWithText("CRAPS").performScrollTo().performClick()

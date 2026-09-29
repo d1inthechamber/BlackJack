@@ -26,13 +26,15 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
         if (g.active && g.actor > 0) { delay(1100); model.change { g.botStep() } }
     }
     HumanReactionVoice(g.hand, if (g.showdown && g.seats.isNotEmpty()) {
-        if (g.seats[0].expression == 3) HumanReaction.FRUSTRATED else HumanReaction.CHEER
+        if (g.seats[0].expression == 3) HumanReaction.CHEER else HumanReaction.FRUSTRATED
     } else null, model.settings.voices)
 
     TableRoom(model, "POKER", onBack, { rules = true }) {
+        val screenRevision = model.revision
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val landscape = maxWidth > maxHeight * 1.25f && maxWidth >= 600.dp
             val controls: @Composable ColumnScope.() -> Unit = {
+                val controlsRevision = model.revision
                 if (!g.seated) {
                     Text("TEXAS HOLD’EM · 5 / 10", color = model.room.accent, fontSize = 12.sp)
                     Button(onClick = {
@@ -42,7 +44,8 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().height(50.dp).testTag("poker-buyin")) {
                         Text("TAKE A SEAT · $" + minOf(500, model.game.bankroll.toInt()))
                     }
-                    if (model.game.bankroll < 100) Button(onClick = { model.refill() }, modifier = Modifier.fillMaxWidth()) { Text("REFILL") }
+                    if (model.game.bankroll < 10) Button(onClick = { model.refill() }, modifier = Modifier.fillMaxWidth()) { Text("REFILL") }
+                    else if (model.game.bankroll < 100) Text("$100 minimum", color = model.room.accent, fontSize = 12.sp)
                 } else {
                     val p = g.seats[0]
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -53,7 +56,7 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                         val yourTurn = g.actor == 0
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedButton(onClick = { model.change { g.act(PokerAction.FOLD) } }, enabled = yourTurn, modifier = Modifier.weight(1f)) { Text("FOLD") }
-                            Button(onClick = { model.change { g.act(PokerAction.CALL) } }, enabled = yourTurn, modifier = Modifier.weight(1f)) { Text(if (g.toCall(0) == 0) "CHECK" else "CALL $" + minOf(g.toCall(0), p.stack)) }
+                            Button(onClick = { model.change { g.act(PokerAction.CALL) } }, enabled = yourTurn, modifier = Modifier.weight(1f).testTag("poker-call")) { Text(if (g.toCall(0) == 0) "CHECK" else "CALL $" + minOf(g.toCall(0), p.stack)) }
                         }
                         if (yourTurn && g.canRaise(0)) {
                             val cap = p.stack + p.streetBet
@@ -99,7 +102,7 @@ private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
         val w = maxWidth
         val h = maxHeight
         val compact = h < 340.dp
-        val cardW = minOf(w / 7.4f, h * if (compact) .115f else .15f).coerceAtLeast(24.dp)
+        val cardW = minOf(w / 7.4f, h * if (compact) .10f else .13f).coerceAtLeast(21.dp)
         val cardH = cardW * 1.40f
         val actorW = w * .32f
         // Torso bases sit at the back rail; the rail occludes their lower edge.
@@ -129,10 +132,10 @@ private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
                 if (acting) Box(Modifier.width(44.dp).height(2.dp).background(model.room.accent))
             }
         }
-        Column(Modifier.align(Alignment.TopCenter).offset(y = h * if (compact) .52f else .55f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.align(Alignment.TopCenter).offset(y = h * .52f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("POT $" + g.pot, color = model.room.accent, fontSize = 15.sp, fontWeight = FontWeight.Black, modifier = Modifier.testTag("poker-pot"))
             Spacer(Modifier.height(5.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(Modifier.testTag("poker-board-cards"), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 repeat(5) { i ->
                     g.board.getOrNull(i)?.let { TableCard(it.toString(), cardW, cardH, (i - 2) * .8f) }
                         ?: Box(Modifier.size(cardW, cardH).border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(5.dp)))
@@ -141,7 +144,7 @@ private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
         }
         if (g.seated) {
             val p = g.seats[0]
-            Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).testTag("poker-human-cards"), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (g.button == 0) DealerButton()
                 p.hole.forEachIndexed { i, card -> TableCard(card.toString(), cardW * 1.06f, cardH * 1.06f, if (i == 0) -5f else 5f) }
                 if (p.streetBet > 0) ChipStack(p.streetBet)

@@ -156,6 +156,7 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
     val collecting = !rolling && game.winner != CrapsWinner.NONE
     BoxWithConstraints(modifier.clip(RoundedCornerShape(20.dp)).border(1.dp,
         model.room.accent.copy(alpha = .65f), RoundedCornerShape(20.dp)).testTag("craps-street")) {
+        val sceneRevision = model.revision
         Image(painterResource(R.drawable.craps_alley), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(
             Color.Black.copy(alpha = .28f), Color.Transparent, Color.Black.copy(alpha = .22f)))))
@@ -264,7 +265,7 @@ private fun CrapsOpponent(room: RoomStyle, winner: CrapsWinner, modifier: Modifi
     var sheet by remember(room) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(room) { sheet = withContext(Dispatchers.Default) { decodeDealer(context, room) } }
     Canvas(modifier.clipToBounds().testTag("craps-opponent").semantics {
-        contentDescription = room.host
+        contentDescription = "Opponent"
         stateDescription = if (sheet == null) "Loading" else "Ready"
     }) {
         sheet?.let { drawDealerPose(it, room, when (winner) {
@@ -318,15 +319,27 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, modifier: Modifier)
             val cw = sheet.width / 4
             val rowTop = (rows[0] * sheet.height / 1086f).roundToInt()
             val rowHeight = ((rows[1]-rows[0]) * sheet.height / 1086f).roundToInt()
-            // Continue the character's sleeve to the far edge of the scene so
-            // the reaching hand stays attached to an arm instead of floating.
-            val reachWidth = size.width * .48f
-            drawImage(sheet,
-                srcOffset = IntOffset((cw*.11f).roundToInt(), rowTop + (rowHeight*.51f).roundToInt()),
-                srcSize = IntSize((cw*.16f).roundToInt(), (rowHeight*.15f).roundToInt()),
-                dstOffset = IntOffset((size.width*.32f).roundToInt(), (-size.height*3f).roundToInt()),
-                dstSize = IntSize(reachWidth.roundToInt(), (size.height*3.16f).roundToInt()),
-                filterQuality = FilterQuality.Medium)
+            // A shaded continuation joins the sampled costume to the far edge.
+            // Keep tattoos and cuff details at their original proportions below.
+            val sleeveColor = when(room) {
+                RoomStyle.VEGAS -> Color(0xFFD6C4A4)
+                RoomStyle.CARNIVAL -> Color(0xFF874318)
+                RoomStyle.EGYPT -> Color(0xFFE5D3B4)
+                RoomStyle.IRON -> Color(0xFF252326)
+                RoomStyle.WEST -> Color(0xFF262024)
+                RoomStyle.PUNK -> Color(0xFFE8BDA4)
+                RoomStyle.GREEN -> Color(0xFFE0D3BB)
+            }
+            val extension = Path().apply {
+                moveTo(size.width*.34f,-size.height*3f)
+                lineTo(size.width*.78f,-size.height*3f)
+                lineTo(size.width*.78f,size.height*.12f)
+                lineTo(size.width*.34f,size.height*.12f);close()
+            }
+            drawPath(extension, Brush.horizontalGradient(listOf(
+                sleeveColor.copy(red=sleeveColor.red*.65f,green=sleeveColor.green*.65f,blue=sleeveColor.blue*.65f),
+                sleeveColor,sleeveColor), startX=size.width*.34f,endX=size.width*.78f))
+            drawPath(extension,Color(0xFF211A18),style=Stroke(1.2.dp.toPx()))
             // The outer forearm boundary differs by costume. These small masks
             // exclude adjacent torso pixels without altering the character art.
             val edge = when(room) {

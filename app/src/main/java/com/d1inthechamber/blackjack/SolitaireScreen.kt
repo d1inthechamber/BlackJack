@@ -68,6 +68,8 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
         }
     }
     TableRoom(model, "SOLITAIRE", onBack, { help = true }) {
+        // Observe mutations inside this composable content lambda, including controls.
+        val screenRevision = model.revision
         Row(Modifier.fillMaxWidth().height(26.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("DRAW ${g.drawCount}", color = model.room.accent, fontSize = 11.sp)
             Text(when { g.won -> "+100 · COMPLETE"; stuck -> "NO MOVES · UNDO OR NEW"; else -> note }, color = if (stuck) Color(0xFFFFBCAC) else Color.White,

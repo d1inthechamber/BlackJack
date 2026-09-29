@@ -238,7 +238,7 @@ internal fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifie
             motion.animateTo(.72f,tween(130));motion.animateTo(0f,spring(dampingRatio=Spring.DampingRatioMediumBouncy))
         }
     }
-    Box(modifier.graphicsLayer{rotationZ=motion.value*3.5f;scaleX=1f+abs(motion.value)*.035f;scaleY=scaleX;translationY=-abs(motion.value)*4.dp.toPx()}.testTag("poker-portrait-$index").semantics{contentDescription=room.host;stateDescription=if(sheet==null)"Loading" else "Ready"},contentAlignment=Alignment.Center){
+    Box(modifier.graphicsLayer{rotationZ=motion.value*3.5f;scaleX=1f+abs(motion.value)*.035f;scaleY=scaleX;translationY=-abs(motion.value)*4.dp.toPx()}.testTag("poker-portrait-$index").semantics{contentDescription="Opponent ${index+1}";stateDescription=if(sheet==null)"Loading" else "Ready"},contentAlignment=Alignment.Center){
     Canvas(Modifier.fillMaxSize().clipToBounds()){
         if(sheet==null)drawCircle(room.accent.copy(alpha=.4f),size.minDimension*.12f,center,style=Stroke(2.dp.toPx()))
         // Use the very same keyed animation atlas as the blackjack dealer.
