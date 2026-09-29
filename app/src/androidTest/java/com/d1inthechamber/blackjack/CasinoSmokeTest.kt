@@ -154,6 +154,9 @@ class CasinoSmokeTest {
             rule.runOnUiThread { m.shootCraps(1,1) }
             rule.mainClock.advanceTimeByFrame()
             rule.mainClock.advanceTimeBy(1420);rule.waitForIdle()
+            rule.waitUntil(15000) {
+                rule.onAllNodesWithContentDescription("Opponent hand collecting the money").fetchSemanticsNodes().size==1
+            }
             rule.onNodeWithContentDescription("Opponent hand collecting the money").assertExists()
             shot("craps-opponent-pull")
             rule.mainClock.advanceTimeBy(440);rule.waitForIdle()
