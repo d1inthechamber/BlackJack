@@ -88,7 +88,7 @@ class TableSmokeTest {
         rule.onNodeWithText("HIT").performClick()
         rule.onAllNodesWithText("4♠")[0].assertIsDisplayed()
         rule.onNodeWithText("SHOE 100").assertExists()
-        rule.onNodeWithText("AVAILABLE 975 CHIPS").assertIsDisplayed()
+        rule.onNodeWithText("975 CHIPS").assertIsDisplayed()
         screenshot("portrait-hit")
         rule.runOnUiThread { rule.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         rule.waitUntil(10000) { rule.activity.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE }
@@ -112,7 +112,7 @@ class TableSmokeTest {
         rule.waitForIdle()
         rule.onNodeWithText("HIT").assertIsEnabled()
         rule.onNodeWithTag("dealing-card").assertDoesNotExist()
-        rule.onNodeWithText("AVAILABLE 950 CHIPS").assertIsDisplayed()
+        rule.onNodeWithText("950 CHIPS").assertIsDisplayed()
         rule.onAllNodesWithText("3♠")[0].assertIsDisplayed()
         rule.runOnIdle {
             org.junit.Assert.assertEquals(listOf("5","3"),g.hands[0].cards.map { it.rank })
@@ -163,7 +163,7 @@ class TableSmokeTest {
             }
             rule.onNodeWithTag("nav-games").performClick()
             rule.onNodeWithText("CONTINUE").performScrollTo().performClick()
-            rule.onNodeWithText("AVAILABLE 1000 CHIPS").assertIsDisplayed()
+            rule.onNodeWithText("1000 CHIPS").assertIsDisplayed()
             screenshot("room-${room.id}")
             rule.onNodeWithText("MENU").performClick()
         }

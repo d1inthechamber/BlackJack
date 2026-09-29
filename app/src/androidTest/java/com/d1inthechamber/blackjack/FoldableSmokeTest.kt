@@ -57,6 +57,7 @@ class FoldableSmokeTest {
         rule.waitUntil(15000) { rule.onAllNodes(SemanticsMatcher.expectValue(
             androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==3 }
         visibleInsideRoot("poker-table");visibleInsideRoot("poker-deal")
+        rule.runOnUiThread { m.change { m.casino.poker=PokerGame().apply { sit(500,m.room.ordinal);startHand() } } }
         capture("poker-$mode")
         rule.onNodeWithTag("nav-games").performClick()
         rule.onNodeWithText("CRAPS").performScrollTo().performClick()

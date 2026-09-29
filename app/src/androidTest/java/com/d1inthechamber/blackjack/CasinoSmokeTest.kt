@@ -39,18 +39,18 @@ class CasinoSmokeTest {
     }
     @Test fun pokerBuyInCashOutAndBotTurn(){
         reset();rule.onNodeWithText("POKER").performScrollTo().performClick()
-        rule.onNodeWithTag("poker-buyin").performScrollTo().performClick()
+        rule.onNodeWithTag("poker-buyin").assertIsDisplayed().performClick()
         val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnIdle{assertEquals(500.0,m.game.bankroll,0.0);assertEquals(500,m.casino.poker.seats[0].stack)}
-        rule.onNodeWithTag("poker-cashout").performScrollTo().performClick()
+        rule.onNodeWithTag("poker-cashout").assertIsDisplayed().performClick()
         rule.runOnIdle{assertEquals(1000.0,m.game.bankroll,0.0);assertFalse(m.casino.poker.seated)}
-        rule.onNodeWithTag("poker-buyin").performScrollTo().performClick();rule.onNodeWithTag("poker-deal").performScrollTo().performClick()
+        rule.onNodeWithTag("poker-buyin").assertIsDisplayed().performClick();rule.onNodeWithTag("poker-deal").assertIsDisplayed().performClick()
         rule.mainClock.advanceTimeBy(4500);rule.waitForIdle()
         rule.onNodeWithText("POT $15").assertExists()
         rule.waitUntil(timeoutMillis=15000){rule.onAllNodes(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==3}
         rule.mainClock.advanceTimeByFrame();rule.waitForIdle()
         (1..3).forEach{rule.onNodeWithTag("poker-reaction-$it").assertIsDisplayed()}
-        rule.onNodeWithText("LOBBY").performScrollTo();shot("poker")
+        rule.onNodeWithText("LOBBY").assertIsDisplayed();shot("poker")
         rule.runOnIdle{assertTrue(m.casino.poker.active);assertEquals(0,m.casino.poker.actor)}
         rule.activityRule.scenario.recreate();rule.onNodeWithTag("poker-table").assertExists()
     }
@@ -99,7 +99,7 @@ class CasinoSmokeTest {
             rule.onNodeWithTag("settings-button").assertIsDisplayed().performClick()
             rule.onNodeWithTag("settings-content").assertIsDisplayed()
             rule.onNodeWithText("BACK").performClick()
-            rule.onNodeWithText("LOBBY").performScrollTo().performClick()
+            rule.onNodeWithTag("nav-games").performClick()
         }
         listOf(R.raw.dealer_grunt,R.raw.dealer_groan,R.raw.dealer_laugh).forEach{id->
             val p=android.media.MediaPlayer.create(rule.activity,id);assertNotNull(p);assertTrue(p.duration>200);p.release()

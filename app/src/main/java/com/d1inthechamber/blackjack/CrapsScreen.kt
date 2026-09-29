@@ -114,6 +114,7 @@ internal fun CrapsScreen(model: BlackjackViewModel, onBack: () -> Unit) {
 @Composable
 private fun ColumnScope.CrapsControls(model: BlackjackViewModel, rolling: Boolean,
     canShoot: Boolean, shoot: () -> Unit) {
+    val revision = model.revision
     val game = model.craps
     var help by remember { mutableStateOf(false) }
     Text(when { rolling -> ""; game.winner == CrapsWinner.PLAYER -> "YOU WIN"; game.winner == CrapsWinner.OPPONENT -> "HAND LOST"; game.active -> "${game.dieOne + game.dieTwo} · POINT ${game.point}"; else -> "" }, color = Color(0xFFF5E8D1), fontSize = 14.sp,
@@ -147,6 +148,7 @@ private fun ColumnScope.CrapsControls(model: BlackjackViewModel, rolling: Boolea
 @Composable
 private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgress: Float,
     collection: Float, canShoot: Boolean, shoot: () -> Unit, modifier: Modifier) {
+    val revision = model.revision
     val game = model.craps
     val hands = ImageBitmap.imageResource(R.drawable.craps_hands)
     val bill = ImageBitmap.imageResource(R.drawable.craps_banknote)
@@ -225,7 +227,7 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         if (collecting) {
             val frame = if (collection < .48f) 1 else if (collection < .60f) 0 else 2
             val collectorModifier = Modifier.align(Alignment.Center)
-                .offset(y = potY + travel * direction * handDistance)
+                .offset(y = potY + travel * direction * handDistance - if (direction < 0) handHeight * .20f else 0.dp)
                 .size(handWidth, handHeight)
                 .testTag("craps-collector").semantics {
                     contentDescription = if (direction < 0) "Opponent hand collecting the money" else "Player hand collecting the money"
@@ -316,17 +318,35 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, modifier: Modifier)
             val cw = sheet.width / 4
             val rowTop = (rows[0] * sheet.height / 1086f).roundToInt()
             val rowHeight = ((rows[1]-rows[0]) * sheet.height / 1086f).roundToInt()
+            // Continue the character's sleeve to the far edge of the scene so
+            // the reaching hand stays attached to an arm instead of floating.
+            val reachWidth = size.width * .48f
+            drawImage(sheet,
+                srcOffset = IntOffset((cw*.11f).roundToInt(), rowTop + (rowHeight*.51f).roundToInt()),
+                srcSize = IntSize((cw*.16f).roundToInt(), (rowHeight*.15f).roundToInt()),
+                dstOffset = IntOffset((size.width*.32f).roundToInt(), (-size.height*3f).roundToInt()),
+                dstSize = IntSize(reachWidth.roundToInt(), (size.height*3.16f).roundToInt()),
+                filterQuality = FilterQuality.Medium)
+            // The outer forearm boundary differs by costume. These small masks
+            // exclude adjacent torso pixels without altering the character art.
+            val edge = when(room) {
+                RoomStyle.VEGAS -> listOf(.84f to 0f,.68f to .49f,.69f to .65f,.81f to .83f,.78f to .94f,.66f to 1f)
+                RoomStyle.CARNIVAL -> listOf(.91f to 0f,.73f to .48f,.77f to .69f,.86f to .87f,.83f to 1f)
+                RoomStyle.EGYPT -> listOf(.92f to 0f,.73f to .46f,.72f to .62f,.94f to .84f,.91f to 1f)
+                RoomStyle.IRON -> listOf(.91f to 0f,.74f to .48f,.71f to .61f,.95f to .87f,.90f to 1f)
+                RoomStyle.WEST -> listOf(.85f to 0f,.67f to .47f,.65f to .65f,.98f to .86f,.96f to 1f)
+                RoomStyle.PUNK -> listOf(.92f to 0f,.70f to .50f,.65f to .64f,.84f to .89f,.77f to 1f)
+                RoomStyle.GREEN -> listOf(.87f to 0f,.57f to .35f,.58f to .54f,.70f to .73f,.72f to .85f,.59f to 1f)
+            }
             val mask = Path().apply {
-                moveTo(size.width*.42f,0f); lineTo(size.width*.92f,0f)
-                lineTo(size.width*.78f,size.height*.58f); lineTo(size.width,size.height*.84f)
-                lineTo(size.width*.94f,size.height); lineTo(size.width*.05f,size.height)
-                lineTo(0f,size.height*.84f); lineTo(size.width*.16f,size.height*.63f)
-                lineTo(size.width*.28f,size.height*.40f); close()
+                moveTo(size.width*.22f,0f)
+                edge.forEach { (x,y) -> lineTo(size.width*x,size.height*y) }
+                lineTo(0f,size.height);lineTo(0f,0f);close()
             }
             clipPath(mask) {
                 drawImage(sheet,
                     srcOffset = IntOffset(0, rowTop + (rowHeight*.50f).roundToInt()),
-                    srcSize = IntSize((cw*.39f).roundToInt(), (rowHeight*.50f).roundToInt()),
+                    srcSize = IntSize((cw * if(room == RoomStyle.WEST) .44f else .39f).roundToInt(), (rowHeight*.50f).roundToInt()),
                     dstSize = IntSize(size.width.roundToInt(), (size.height * if(gripping) .94f else 1f).roundToInt()),
                     filterQuality = FilterQuality.Medium)
             }

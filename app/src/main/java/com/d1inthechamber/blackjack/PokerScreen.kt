@@ -68,7 +68,7 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                     } else {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Button(onClick = { model.change { g.startHand() } }, enabled = p.stack > 0, modifier = Modifier.weight(1f).testTag("poker-deal")) { Text(if (g.hand == 0) "DEAL" else "NEXT HAND") }
-                            OutlinedButton(onClick = { model.change { model.game.bankroll += g.cashOut() } }, modifier = Modifier.weight(1f).testTag("poker-cashout")) { Text("CASH OUT") }
+                            OutlinedButton(onClick = { model.change { model.game.bankroll += g.cashOut() } }, modifier = Modifier.weight(1f).testTag("poker-cashout"), contentPadding = PaddingValues(horizontal = 6.dp)) { Text("CASH OUT", maxLines = 1, fontSize = 12.sp) }
                         }
                     }
                 }
@@ -89,14 +89,17 @@ internal fun PokerScreen(model: BlackjackViewModel, onBack: () -> Unit) {
 
 @Composable
 private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
+    val revision = model.revision
     val g = model.casino.poker
     // The same approved cast is seated behind the rail, without portrait boxes.
     val preview = remember(model.room) { PokerGame().apply { sit(500, model.room.ordinal) } }
     val seats = if (g.seated) g.seats else preview.seats
     BoxWithConstraints(modifier.testTag("poker-table")) {
+        val tableRevision = model.revision
         val w = maxWidth
         val h = maxHeight
-        val cardW = minOf(w / 7.4f, h * .15f).coerceAtLeast(24.dp)
+        val compact = h < 340.dp
+        val cardW = minOf(w / 7.4f, h * if (compact) .115f else .15f).coerceAtLeast(24.dp)
         val cardH = cardW * 1.40f
         val actorW = w * .32f
         // Torso bases sit at the back rail; the rail occludes their lower edge.
@@ -104,13 +107,13 @@ private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
             val x = w * (.17f + j * .33f) - actorW / 2
             val y = if (j == 1) 0.dp else h * .035f
             PokerPortrait(if (g.showdown) p.copy(expression = if (p.expression == 3) 4 else 3) else p, j, g.active && g.actor == j + 1,
-                Modifier.offset(x, y).size(actorW, h * .34f).testTag("poker-opponent-${j+1}"))
+                Modifier.offset(x, y).size(actorW, h * if (compact) .27f else .34f).testTag("poker-opponent-${j+1}"))
         }
-        TableFelt(Modifier.offset(y = h * .27f).fillMaxWidth().height(h * .72f), oval = true)
+        TableFelt(Modifier.offset(y = h * if (compact) .21f else .27f).fillMaxWidth().height(h * if (compact) .78f else .72f), oval = true)
         seats.drop(1).forEachIndexed { j, p ->
             val acting = g.active && g.actor == j + 1
             val x = w * (.17f + j * .33f) - actorW / 2
-            Column(Modifier.offset(x, h * .30f).width(actorW), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.offset(x, h * if (compact) .23f else .30f).width(actorW), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.graphicsLayer { alpha = if (p.folded && g.hand > 0) .38f else 1f }) {
                     repeat(2) { i ->
                         val face = p.hole.getOrNull(i)?.let { if (g.showdown && !p.folded) it.toString() else "?" } ?: "?"
@@ -126,7 +129,7 @@ private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
                 if (acting) Box(Modifier.width(44.dp).height(2.dp).background(model.room.accent))
             }
         }
-        Column(Modifier.align(Alignment.Center).offset(y = h * .13f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.align(Alignment.TopCenter).offset(y = h * if (compact) .52f else .55f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("POT $" + g.pot, color = model.room.accent, fontSize = 15.sp, fontWeight = FontWeight.Black, modifier = Modifier.testTag("poker-pot"))
             Spacer(Modifier.height(5.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -143,8 +146,9 @@ private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
                 p.hole.forEachIndexed { i, card -> TableCard(card.toString(), cardW * 1.06f, cardH * 1.06f, if (i == 0) -5f else 5f) }
                 if (p.streetBet > 0) ChipStack(p.streetBet)
             }
-            if (g.showdown) {
-                val result = if (p.folded) "FOLDED" else if (p.expression == 3) "HAND WON" else "HAND LOST"
+            if (!g.active && g.hand > 0) {
+                val won = if (g.showdown) p.expression == 3 else g.message.startsWith("${p.name} wins ")
+                val result = if (won) "HAND WON" else "HAND LOST"
                 Text(result, color = model.room.accent, fontWeight = FontWeight.Black, fontSize = 12.sp,
                     modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp).background(Color.Black.copy(alpha = .8f), RoundedCornerShape(5.dp)).padding(5.dp))
             }

@@ -75,6 +75,8 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
             Text("${g.moves} MOVES", color = Color.White.copy(alpha = .7f), fontSize = 11.sp)
         }
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).testTag("solitaire-table")) {
+            // This board is subcomposed: observe the saved-state revision here as well.
+            val board = remember(g, model.revision) { g.snapshot() }
             TableFelt(Modifier.fillMaxSize())
             val gap = 4.dp
             val inset = 10.dp
@@ -88,16 +90,16 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
             fun outlined(p: SolitairePick) = p == selected || p == hint?.first
             fun border(on: Boolean) = if (on) Modifier.border(2.dp, model.room.accent, RoundedCornerShape(5.dp)) else Modifier
             Box(Modifier.offset(left, top).size(cardW, cardH).testTag("sol-stock")
-                .semantics { contentDescription = if (g.stock.isEmpty()) "Recycle stock" else "Draw ${g.drawCount}; ${g.stock.size} cards left" }
+                .semantics { contentDescription = if (board.stock.isEmpty()) "Recycle stock" else "Draw ${g.drawCount}; ${board.stock.size} cards left" }
                 .clickable(enabled = !finishing && !g.won) { draw() }) {
-                if (g.stock.isNotEmpty()) CardView("?", cardW, cardH) else SolitaireSlot("↻", cardW, cardH)
-                if (g.stock.isNotEmpty()) Text("${g.stock.size}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                if (board.stock.isNotEmpty()) CardView("?", cardW, cardH) else SolitaireSlot("↻", cardW, cardH)
+                if (board.stock.isNotEmpty()) Text("${board.stock.size}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.BottomCenter).background(Color.Black.copy(alpha = .8f), RoundedCornerShape(3.dp)).padding(horizontal = 5.dp))
             }
-            val fanCount = if (g.drawCount == 3) minOf(3, g.waste.size) else minOf(1, g.waste.size)
+            val fanCount = if (g.drawCount == 3) minOf(3, board.waste.size) else minOf(1, board.waste.size)
             if (fanCount == 0) Box(Modifier.offset(left + cardW + gap, top)) { SolitaireSlot("", cardW, cardH) }
-            g.waste.takeLast(fanCount).forEachIndexed { i, card ->
-                val p = SolitairePick(-1, g.waste.size - fanCount + i)
+            board.waste.takeLast(fanCount).forEachIndexed { i, card ->
+                val p = SolitairePick(-1, board.waste.size - fanCount + i)
                 val topCard = i == fanCount - 1
                 Box(Modifier.offset(left + cardW + gap + cardW * (.42f * i), top)
                     .zIndex(if (drag.pick?.pile == -1) 40f else i.toFloat())
@@ -108,20 +110,20 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
                 }
             }
             repeat(4) { f ->
-                val p = SolitairePick(f + 7, g.foundations[f].lastIndex)
+                val p = SolitairePick(f + 7, board.foundations[f].lastIndex)
                 Box(Modifier.offset(left + (cardW + gap) * (f + 3), top).size(cardW, cardH)
                     .zIndex(if (drag.pick?.pile == f + 7) 40f else 0f).testTag("sol-foundation-$f")
                     .onGloballyPositioned { targets[f + 7] = it.boundsInRoot() }
-                    .solitaireDrag(drag, g.foundations[f].isNotEmpty() && !finishing, p, targets) { move(p, it) }
+                    .solitaireDrag(drag, board.foundations[f].isNotEmpty() && !finishing, p, targets) { move(p, it) }
                     .then(border(outlined(p) || hint?.second == f + 7)).clickable(enabled = !finishing) {
-                        selected?.let { move(it, f + 7) } ?: run { if (g.foundations[f].isNotEmpty()) selected = p }
+                        selected?.let { move(it, f + 7) } ?: run { if (board.foundations[f].isNotEmpty()) selected = p }
                     }) {
-                    g.foundations[f].lastOrNull()?.let { CardView(it.toString(), cardW, cardH) } ?: SolitaireSlot("A", cardW, cardH)
+                    board.foundations[f].lastOrNull()?.let { CardView(it.toString(), cardW, cardH) } ?: SolitaireSlot("A", cardW, cardH)
                 }
             }
             repeat(7) { c ->
-                val pile = g.columns[c]
-                val down = g.hidden[c]
+                val pile = board.columns[c]
+                val down = board.hidden[c]
                 // Reflow every column from its actual card count, keeping its bottom card in view.
                 val downIdeal = minOf(11.dp, cardH * .12f)
                 val upIdeal = minOf(29.dp, cardH * .30f)
