@@ -242,9 +242,9 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
                     stateDescription = if (direction < 0) "Opponent: ${model.room.id}" else "Player: tattooed hand"
                 }
             if (game.winner == CrapsWinner.OPPONENT) {
-                val shoulderX = handWidth / 2 + 21.dp / handScale
-                val shoulderY = handHeight / 2 + (5.dp + opponentHeight * .78f - maxHeight / 2 - collectorY) / handScale
-                OpponentHand(model.room, collection >= .48f, shoulderX, shoulderY, 10.dp / handScale, collectorModifier)
+                val shoulderX = handWidth / 2 - opponentHeight * .25f / handScale
+                val shoulderY = handHeight / 2 + (5.dp + opponentHeight * .50f - maxHeight / 2 - collectorY) / handScale
+                OpponentHand(model.room, collection >= .48f, shoulderX, shoulderY, opponentHeight * .15f / handScale, collectorModifier)
             } else HandSprite(hands, frame, collectorModifier)
         }
         val shake = if (rolling && throwProgress < .46f) sin(throwProgress * 70f) else 0f
@@ -277,11 +277,21 @@ private fun CrapsOpponent(room: RoomStyle, winner: CrapsWinner, modifier: Modifi
         contentDescription = "Opponent"
         stateDescription = if (sheet == null) "Loading" else "Ready"
     }) {
-        sheet?.let { drawDealerPose(it, room, when (winner) {
-            CrapsWinner.PLAYER -> 6
-            CrapsWinner.OPPONENT -> 10
-            else -> 0
-        }, 0f, size.width) }
+        sheet?.let {
+            val side = minOf(size.width, size.height)
+            val left = (size.width - side) / 2
+            if (winner == CrapsWinner.OPPONENT) {
+                // The moving foreground arm replaces this pose's original arm.
+                // Keeping the matching shoulder avoids a crossed-arm third hand.
+                val body = Path().apply {
+                    fillType = PathFillType.EvenOdd
+                    addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
+                    addRect(androidx.compose.ui.geometry.Rect(left, side * .50f,
+                        left + side * if (room == RoomStyle.WEST) .44f else .39f, side))
+                }
+                clipPath(body) { drawDealerPose(it, room, 4, left, side) }
+            } else drawDealerPose(it, room, if (winner == CrapsWinner.PLAYER) 6 else 0, left, side)
+        }
     }
 }
 
