@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -243,9 +244,19 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
                     stateDescription = if (direction < 0) "Opponent: ${model.room.id}" else "Player: tattooed hand"
                 }
             if (game.winner == CrapsWinner.OPPONENT) {
-                val shoulderX = handWidth / 2 - opponentHeight * .25f / handScale
-                val shoulderY = handHeight / 2 + (5.dp + opponentHeight * .50f - maxHeight / 2 - collectorY) / handScale
-                OpponentHand(model.room, collection >= .48f, shoulderX, shoulderY, opponentHeight * .15f / handScale, collectorModifier)
+                val drawnWidth = handWidth * handScale
+                val drawnHeight = handHeight * handScale
+                val handTop = maxHeight / 2 + collectorY - drawnHeight / 2
+                val shoulderX = drawnWidth / 2 - opponentHeight * .25f
+                val shoulderY = 5.dp + opponentHeight * .50f - handTop
+                // Draw the complete arm in scene coordinates so the textured
+                // upper sleeve is never clipped by the foreground hand's layer.
+                OpponentHand(model.room, collection >= .48f, (maxWidth-drawnWidth)/2, handTop,
+                    drawnWidth, drawnHeight, shoulderX, shoulderY, opponentHeight * .15f,
+                    Modifier.fillMaxSize().testTag("craps-collector").semantics {
+                        contentDescription = "Opponent hand collecting the money"
+                        stateDescription = "Opponent: ${model.room.id}"
+                    })
             } else HandSprite(hands, frame, collectorModifier)
         }
         val shake = if (rolling && throwProgress < .46f) sin(throwProgress * 70f) else 0f
@@ -320,7 +331,8 @@ private fun DrawScope.drawDie(value: Int, center: Offset, side: Float, angle: Fl
 
 
 @Composable
-private fun OpponentHand(room: RoomStyle, gripping: Boolean, shoulderX: Dp, shoulderY: Dp, shoulderHalfWidth: Dp, modifier: Modifier) {
+private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handTop: Dp,
+    handWidth: Dp, handHeight: Dp, shoulderX: Dp, shoulderY: Dp, shoulderHalfWidth: Dp, modifier: Modifier) {
     val context = LocalContext.current
     var atlas by remember(room) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(room) { atlas = withContext(Dispatchers.Default) { decodeDealer(context, room) } }
@@ -337,11 +349,14 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, shoulderX: Dp, shou
         val cw = it.width / 4
         val rowTop = (rows[0] * it.height / 1086f).roundToInt()
         val rowHeight = ((rows[1]-rows[0]) * it.height / 1086f).roundToInt()
-        android.graphics.Bitmap.createBitmap(it.asAndroidBitmap(), (cw*.17f).roundToInt(),
-            rowTop + (rowHeight*.38f).roundToInt(), (cw*.13f).roundToInt(), (rowHeight*.13f).roundToInt())
+        val patchX = when(room) { RoomStyle.CARNIVAL -> .24f; RoomStyle.GREEN -> .20f; else -> .18f }
+        android.graphics.Bitmap.createBitmap(it.asAndroidBitmap(), (cw*patchX).roundToInt(),
+            rowTop + (rowHeight*.50f).roundToInt(), (cw*.06f).roundToInt(), (rowHeight*.08f).roundToInt())
     } }
     val sleevePaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG) }
     Canvas(modifier) {
+        inset(handLeft.toPx(), handTop.toPx(), size.width-handLeft.toPx()-handWidth.toPx(),
+            size.height-handTop.toPx()-handHeight.toPx()) {
         atlas?.let { sheet ->
             // Isolate the forward arm of the approved dealing pose, including its
             // skin tone, cuff, jewelry and tattoos. Never reuse the player's atlas.
@@ -389,6 +404,7 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, shoulderX: Dp, shou
                     dstSize = IntSize(size.width.roundToInt(), (size.height * if(gripping) .94f else 1f).roundToInt()),
                     filterQuality = FilterQuality.Medium)
             }
+        }
         }
     }
 }
