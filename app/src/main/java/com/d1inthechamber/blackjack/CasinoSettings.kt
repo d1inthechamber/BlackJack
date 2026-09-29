@@ -58,7 +58,7 @@ internal fun RoomsPage(model:BlackjackViewModel,onBack:()->Unit){
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.58f)))
                     Column(Modifier.align(Alignment.CenterStart).padding(16.dp)){
                         Text(room.title+if(room==model.room)" ✓" else "",color=room.accent,fontSize=22.sp)
-                        Text(room.host,color=Color.White,fontSize=14.sp)
+
                     }
                     room.cardBack?.let{Image(painterResource(it),null,Modifier.align(Alignment.CenterEnd).padding(12.dp).size(48.dp,72.dp))}
                 }

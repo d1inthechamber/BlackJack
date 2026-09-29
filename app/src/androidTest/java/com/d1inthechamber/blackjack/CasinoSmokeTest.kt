@@ -32,27 +32,27 @@ class CasinoSmokeTest {
     }
     @Test fun solitaireDrawUndoAndRoomTheme(){
         reset();rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
-        rule.onNodeWithText("DRAW (24)").performClick();rule.onNodeWithText("DRAW (23)").assertExists()
-        rule.onNodeWithText("UNDO").performClick();rule.onNodeWithText("DRAW (24)").assertExists();repeat(7){rule.onNodeWithTag("sol-column-$it").assertIsDisplayed()}
+        rule.onNodeWithTag("sol-stock").performClick();rule.onNodeWithContentDescription("Draw 1; 23 cards left").assertExists()
+        rule.onNodeWithTag("sol-undo").performClick();rule.onNodeWithContentDescription("Draw 1; 24 cards left").assertExists();repeat(7){rule.onNodeWithTag("sol-column-$it").assertIsDisplayed()}
         shot("solitaire")
-        rule.activityRule.scenario.recreate();rule.onNodeWithText("DRAW (24)").assertExists()
+        rule.activityRule.scenario.recreate();rule.onNodeWithContentDescription("Draw 1; 24 cards left").assertExists()
     }
     @Test fun pokerBuyInCashOutAndBotTurn(){
         reset();rule.onNodeWithText("POKER").performScrollTo().performClick()
         rule.onNodeWithTag("poker-buyin").performScrollTo().performClick()
         val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
         rule.runOnIdle{assertEquals(500.0,m.game.bankroll,0.0);assertEquals(500,m.casino.poker.seats[0].stack)}
-        rule.onNodeWithText("CASH OUT • 500 CHIPS").performScrollTo().performClick()
+        rule.onNodeWithTag("poker-cashout").performScrollTo().performClick()
         rule.runOnIdle{assertEquals(1000.0,m.game.bankroll,0.0);assertFalse(m.casino.poker.seated)}
         rule.onNodeWithTag("poker-buyin").performScrollTo().performClick();rule.onNodeWithTag("poker-deal").performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(4500);rule.waitForIdle()
-        rule.onNodeWithText("POT 15 • HAND 1").assertExists()
+        rule.onNodeWithText("POT $15").assertExists()
         rule.waitUntil(timeoutMillis=15000){rule.onAllNodes(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==3}
         rule.mainClock.advanceTimeByFrame();rule.waitForIdle()
         (1..3).forEach{rule.onNodeWithTag("poker-reaction-$it").assertIsDisplayed()}
         rule.onNodeWithText("LOBBY").performScrollTo();shot("poker")
         rule.runOnIdle{assertTrue(m.casino.poker.active);assertEquals(0,m.casino.poker.actor)}
-        rule.activityRule.scenario.recreate();rule.onNodeWithText("NO-LIMIT TEXAS HOLD’EM • 5 / 10").assertExists()
+        rule.activityRule.scenario.recreate();rule.onNodeWithTag("poker-table").assertExists()
     }
     @Test fun solitaireDragMovesAnEntireSequence(){
         reset();rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
@@ -67,7 +67,8 @@ class CasinoSmokeTest {
         rule.onNodeWithTag("sol-card-0-0").performTouchInput{
             down(androidx.compose.ui.geometry.Offset(center.x,8f))
             advanceEventTime(700)
-            moveBy(androidx.compose.ui.geometry.Offset(target.center.x-source.center.x,0f))
+            moveBy(androidx.compose.ui.geometry.Offset(12f,0f))
+            moveBy(androidx.compose.ui.geometry.Offset(target.center.x-source.center.x-12f,0f))
             up()
         }
         rule.waitForIdle()
@@ -155,6 +156,45 @@ class CasinoSmokeTest {
             val spin=rule.onNodeWithTag("slot-spin").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             assertTrue("Spin must fit below the reels",spin.top>=root.top && spin.bottom<=root.bottom)
             shot("slots-" + room.name.lowercase())
+        }
+    }
+
+    @Test fun solitaireDrawThreeHintAndNewDealControls() {
+        reset(); rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
+        rule.onNodeWithTag("sol-new").performClick()
+        rule.onNodeWithText("DRAW 3").performClick()
+        rule.onNodeWithText("DEAL NEW").performClick()
+        rule.onNodeWithTag("sol-stock").performClick()
+        repeat(3) { rule.onNodeWithTag("sol-waste-$it").assertIsDisplayed() }
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnIdle { assertEquals(3,m.casino.solitaire.waste.size) }
+        rule.onNodeWithTag("sol-undo").performClick()
+        rule.runOnIdle { assertEquals(24,m.casino.solitaire.stock.size) }
+        rule.onNodeWithTag("sol-hint").performClick()
+        rule.onNodeWithTag("sol-new").performClick()
+        rule.onNodeWithText("CANCEL").performClick()
+        rule.runOnIdle { assertEquals(3,m.casino.solitaire.drawCount) }
+        shot("solitaire-draw-three")
+    }
+
+    @Test fun crapsUsesEveryOpponentsOwnHand() {
+        reset();rule.onNodeWithText("CRAPS").performScrollTo().performClick()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        for(room in RoomStyle.entries) {
+            rule.runOnUiThread { m.finishCrapsCollection();m.selectRoom(room) }
+            rule.waitUntil(15000) {
+                rule.onAllNodes(hasTestTag("craps-opponent") and SemanticsMatcher.expectValue(
+                    androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==1
+            }
+            rule.mainClock.autoAdvance=false
+            try {
+                rule.runOnUiThread { m.shootCraps(1,1) }
+                rule.mainClock.advanceTimeByFrame();rule.mainClock.advanceTimeBy(1050)
+                rule.onNodeWithTag("craps-collector").assert(SemanticsMatcher.expectValue(
+                    androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Opponent: ${room.id}"))
+                Thread.sleep(500)
+                shot("craps-hand-${room.id}")
+            } finally { rule.mainClock.autoAdvance=true }
         }
     }
 

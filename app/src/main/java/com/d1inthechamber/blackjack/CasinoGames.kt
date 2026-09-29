@@ -46,7 +46,7 @@ internal class SolitaireGame(val drawCount:Int=1, rng:Random=Random()):Serializa
     val won get()=foundations.sumOf{it.size}==52
     val canUndo get()=history.isNotEmpty() && !won
     fun snapshot()=SolitaireSnapshot(stock.toList(),waste.toList(),columns.map{it.toList()},hidden.toList(),foundations.map{it.toList()},moves)
-    private fun checkpoint(){history.add(snapshot());if(history.size>150)history.removeAt(0)}
+    private fun checkpoint(){history.add(snapshot())}
     fun undo():Boolean {
         if(!canUndo)return false
         val s=history.removeAt(history.lastIndex);stock=s.stock.toMutableList();waste=s.waste.toMutableList();columns=s.columns.map{it.toMutableList()}.toMutableList();hidden=s.hidden.toMutableList();foundations=s.foundations.map{it.toMutableList()}.toMutableList();moves=s.moves
@@ -117,4 +117,14 @@ internal fun SolitaireGame.hasAvailableMove():Boolean {
         }else repeat(minOf(drawCount,remaining.size)){exposed.add(remaining.removeAt(remaining.lastIndex))}
     }
     return false
+}
+
+// Extension helpers preserve the existing serialized game shape and saved deals.
+internal val SolitaireGame.canAutoFinish: Boolean get() = !won && stock.isEmpty() && waste.isEmpty() && hidden.all { it == 0 }
+internal fun SolitaireGame.nextFoundationMove(): Pair<SolitairePick, Int>? {
+    for (c in 0..6) {
+        val p = SolitairePick(c, columns[c].lastIndex)
+        for (f in 7..10) if (legal(p, f)) return p to f
+    }
+    return null
 }

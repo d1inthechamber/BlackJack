@@ -37,6 +37,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -401,6 +402,7 @@ fun BlackjackApp(game: BlackjackState, onMenu: () -> Unit = {}, onBuyIn: () -> U
                 Box(Modifier.fillMaxSize().background(Color(0xFF7A1237).copy(alpha = if (ambienceEnabled) neonFlicker else .06f)))
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .28f)))
                 if (ambienceEnabled) RoomSmoke()
+                TableFelt(Modifier.fillMaxSize().padding(top = if (compact) 46.dp else if (wide) 270.dp else if (tall) 260.dp else 220.dp))
                 Column(
                     modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)
                         .padding(horizontal = if (wide) 28.dp else 12.dp, vertical = 10.dp)
@@ -546,7 +548,7 @@ fun DeckDisplay(remaining: Int, pulse: Int, wide: Boolean) {
 
 @Composable
 fun GamePanel(title: String, cards: List<Card>, hideSecond: Boolean, cardWidth: androidx.compose.ui.unit.Dp, cardHeight: androidx.compose.ui.unit.Dp, modifier: Modifier) {
-    Surface(modifier = modifier.animateContentSize(), shape = RoundedCornerShape(20.dp), color = Color(0xFF030A07).copy(alpha = .48f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .2f))) {
+    Surface(modifier = modifier.animateContentSize(), shape = RoundedCornerShape(20.dp), color = Color.Transparent) {
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             CardsRow(cards, hideSecond, cardWidth, cardHeight)
             if (cards.isNotEmpty()) Text(if (hideSecond) "HOLE CARD" else "TOTAL ${score(LocalCardFlights.current?.visible(cards) ?: cards)}", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(top = 5.dp))
@@ -567,10 +569,10 @@ fun PlayerHandPanel(index: Int, hand: PlayerHand, active: Boolean, cardWidth: an
         }
     }
     val pulse by animateFloatAsState(if (active) 1.018f else 1f, tween(400), label = "handPulse")
-    Surface(modifier = Modifier.fillMaxWidth().bringIntoViewRequester(handRequester).scale(pulse), shape = RoundedCornerShape(18.dp), color = if (active) Gold.copy(alpha = .07f) else Color(0xFF030A07).copy(alpha = .4f), border = androidx.compose.foundation.BorderStroke(1.dp, if (active) Gold else Color.White.copy(alpha = .1f))) {
+    Surface(modifier = Modifier.fillMaxWidth().bringIntoViewRequester(handRequester).scale(pulse), shape = RoundedCornerShape(18.dp), color = Color.Transparent) {
         Column(Modifier.padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("PLAYER ${index + 1}", color = if (active) Gold else Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 12.sp)
+                Text(if (index == 0) "YOU" else "HAND ${index + 1}", color = if (active) Gold else Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 12.sp)
                 Spacer(Modifier.width(10.dp)); Text("${score(LocalCardFlights.current?.visible(hand.cards) ?: hand.cards)}  •  ${hand.wager} CHIPS", color = Color.White.copy(alpha = .68f), fontSize = 11.sp)
             }
             Spacer(Modifier.height(5.dp)); CardsRow(hand.cards, false, cardWidth, cardHeight)
@@ -599,19 +601,23 @@ fun CardView(text: String, width: androidx.compose.ui.unit.Dp, height: androidx.
     val room = LocalRoomStyle.current
     val red = text.contains("♥") || text.contains("♦")
     val back = text == "?"
-    Surface(shape = RoundedCornerShape(12.dp), color = if (back) DeckBlue else room.paper, shadowElevation = 14.dp, modifier = Modifier.size(width, height)) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.border(2.dp, room.accent, RoundedCornerShape(12.dp))) {
+    val shape = RoundedCornerShape(if (width < 50.dp) 4.dp else 6.dp)
+    Surface(shape = shape, color = if (back) DeckBlue else room.paper, shadowElevation = 3.dp, modifier = Modifier.size(width, height)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.border(1.dp, if (back) room.accent else Color(0xFFCBC5B4), shape)) {
             if (back && room.cardBack != null) {
-                Image(painterResource(room.cardBack),"${room.title} card back",Modifier.fillMaxSize(),contentScale=ContentScale.FillBounds)
+                Image(painterResource(room.cardBack), "${room.title} card back", Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
             } else if (back) {
-                Box(Modifier.fillMaxSize().padding(5.dp).border(1.dp, DeckBlue2, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                    Text("♠", color = Gold, fontSize = if (width >= 70.dp) 30.sp else 23.sp)
+                Box(Modifier.fillMaxSize().padding(4.dp).border(1.dp, DeckBlue2, shape), contentAlignment = Alignment.Center) {
+                    Text("♠", color = Gold, fontSize = (width.value * .42f).sp)
                 }
             } else {
-                Column(Modifier.fillMaxSize().padding(5.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Text("$text", maxLines = 1, softWrap = false, fontSize = if (width >= 70.dp) 19.sp else if(width < 50.dp) 11.sp else 15.sp, fontWeight = FontWeight.Black, color = if (red) CardRed else Color(0xFF171717))
-                    Text(text, modifier = Modifier.align(Alignment.CenterHorizontally), maxLines = 1, softWrap = false, fontSize = if (width >= 70.dp) 28.sp else if(width < 50.dp) 15.sp else 21.sp, color = if (red) CardRed else Color(0xFF171717))
-                }
+                val ink = if (red) CardRed else Color(0xFF171717)
+                val corner = (width.value * .27f).coerceIn(9f,20f).sp
+                Text(text, color = ink, fontWeight = FontWeight.Black, fontSize = corner, maxLines = 1, softWrap = false,
+                    modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 3.dp, vertical = 1.dp))
+                Text(text.takeLast(1), color = ink, fontSize = (width.value * .45f).sp, modifier = Modifier.align(Alignment.Center))
+                Text(text, color = ink, fontWeight = FontWeight.Black, fontSize = corner, maxLines = 1, softWrap = false,
+                    modifier = Modifier.align(Alignment.BottomEnd).rotate(180f).padding(horizontal = 3.dp, vertical = 1.dp))
             }
         }
     }
@@ -623,7 +629,7 @@ fun BettingPanel(game: BlackjackState, wide: Boolean, compact: Boolean = false) 
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Color(0xFF030A07).copy(alpha = .7f), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = .3f))) {
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("AVAILABLE ${formatChips(game.bankroll)} CHIPS", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("BLACKJACK", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("BET", color = Color.White.copy(alpha = .7f), fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp)
                 Spacer(Modifier.width(8.dp)); Text("${game.bet} CHIPS", color = Gold, fontWeight = FontWeight.Black, fontSize = 16.sp)

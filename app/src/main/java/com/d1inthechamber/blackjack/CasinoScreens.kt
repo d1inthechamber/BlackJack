@@ -83,7 +83,7 @@ fun GameRoot(model:BlackjackViewModel) {
                 "CRAPS"->CrapsScreen(model,lobby)
                 else->CasinoFrame(model,"THE CASINO FLOOR",null){
                     Text("CASINO CHAOS",fontSize=32.sp,fontWeight=FontWeight.Black,color=model.room.accent,letterSpacing=2.sp,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth().testTag("casino-title"))
-                    Text("A little luck. A lot of bad company.",color=Color.LightGray,fontSize=13.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
+
                     Spacer(Modifier.height(12.dp))
                     Button(enabled=model.hasSaved,onClick={enter(model.casino.lastGame)},modifier=Modifier.fillMaxWidth()){Text("CONTINUE")}
                     val locked=model.game.inRound||model.game.shuffling
@@ -91,7 +91,7 @@ fun GameRoot(model:BlackjackViewModel) {
                     val entries=listOf(Triple("BLACKJACK","♠","Your original table • animated dealers"),Triple("SLOTS","7","Themed reels • fixed odds • instant chaos"),Triple("SOLITAIRE","♣","Classic solitaire • drag full stacks"),Triple("POKER","♦","Texas Hold’em • three original rivals"),Triple("CRAPS","⚄","Street dice • real bills • character showdown"))
                     for((name,symbol,detail) in entries) {
                         Card(onClick={enter(name)},enabled=!locked||name=="BLACKJACK",colors=CardDefaults.cardColors(containerColor=Color(0xE516141C)),border=BorderStroke(1.dp,model.room.accent.copy(alpha=.5f)),modifier=Modifier.fillMaxWidth().padding(vertical=4.dp)){
-                            Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Text(symbol,color=model.room.accent,fontSize=34.sp,modifier=Modifier.width(50.dp));Column(Modifier.weight(1f)){Text(name,fontWeight=FontWeight.Black,color=Color.White,fontSize=20.sp);Text(detail,color=Color.LightGray,fontSize=12.sp)}}
+                            Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Text(symbol,color=model.room.accent,fontSize=34.sp,modifier=Modifier.width(50.dp));Column(Modifier.weight(1f)){Text(name,fontWeight=FontWeight.Black,color=Color.White,fontSize=20.sp)}}
                         }
                     }
                     if(model.casino.poker.seated)Text("Poker table: ${model.casino.poker.seats[0].stack} chips held • return to poker to cash out",color=model.room.accent,fontSize=12.sp)
@@ -138,7 +138,7 @@ internal fun CasinoFrame(model:BlackjackViewModel,title:String,onBack:(()->Unit)
                 Text("${formatChips(model.game.bankroll)} CHIPS",Modifier.weight(1f),fontSize=15.sp,color=model.room.accent,fontWeight=FontWeight.Bold)
 
             }
-            Text(model.room.title.uppercase(),color=model.room.accent,fontSize=11.sp,letterSpacing=3.sp)
+
             if(onBack!=null)Text(title,color=Color.White,fontSize=27.sp,fontWeight=FontWeight.Black)
             content(model.revision)
             if(model.game.bankroll<10&&!model.game.inRound&&!model.game.shuffling)Button(onClick={model.refill()},modifier=Modifier.fillMaxWidth()){Text("REFILL • 1,000 FREE CHIPS")}
@@ -179,7 +179,7 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
     }
     val pull:()->Unit={if(!spinning&&model.game.bankroll>=game.bet){model.change{model.game.bankroll-=game.bet;model.game.bankroll+=game.spin()};spinning=true}}
     CasinoFrame(model,"CHAOS SLOTS",onBack){
-        Text("${model.room.title} • ONE PAYLINE",color=model.room.accent)
+
         Row(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically){
         Surface(color=Color(0xFF302019),shape=RoundedCornerShape(topStart=36.dp,topEnd=36.dp,bottomStart=12.dp,bottomEnd=12.dp),border=BorderStroke(4.dp,model.room.accent),modifier=Modifier.weight(1f)){
             Column(Modifier.background(Brush.verticalGradient(listOf(Color(0xFF463329),Color(0xFF100F15),Color(0xFF35251F)))).padding(10.dp),horizontalAlignment=Alignment.CenterHorizontally){
@@ -216,142 +216,12 @@ internal fun SlotsScreen(model:BlackjackViewModel,onBack:()->Unit){
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(10,25,50).forEach{n->OutlinedButton(onClick={model.change{game.bet=n}},enabled=!spinning,modifier=Modifier.weight(1f)){Text(if(n==game.bet)"● $n" else "$n")}}}
         Button(onClick=pull,enabled=!spinning&&model.game.bankroll>=game.bet,modifier=Modifier.fillMaxWidth().height(60.dp).testTag("slot-spin")){Text(if(spinning)"SPINNING…" else "SPIN • ${game.bet} CHIPS",fontSize=18.sp,fontWeight=FontWeight.Black)}
         TextButton(onClick={help=true}){Text("PAY TABLE & RULES")}
-        Text("Spin ${game.spins} • Payout includes your stake",fontSize=12.sp,color=Color.LightGray)
+
     }
     if(help)AlertDialog(onDismissRequest={help=false},title={Text("One line. Fixed odds.")},text={Column{symbols.forEachIndexed{i,s->Text("3 × $s = ${SlotsGame.triples[i]}× stake")};Text("Exactly two ${symbols[0]} = 2× stake. Everything else = 0.\nIndependent 20-stop reels: symbol weights 6 / 5 / 4 / 3 / 2. Theoretical return: 91.925%. Every spin is independent; no guaranteed wins.")}},confirmButton={TextButton(onClick={help=false}){Text("GOT IT")}})
 }
 @Composable
-internal fun SolitaireScreen(model:BlackjackViewModel,onBack:()->Unit){
-    val g=model.casino.solitaire
-    val targets=remember{mutableMapOf<Int,Rect>()}
-    val drag=remember(g){SolitaireDragState()}
-    var selected by remember(g){mutableStateOf<SolitairePick?>(null)}
-    var note by remember{mutableStateOf("Tap a card to move it, or hold and drag it to a pile.")}
-    var newDraw by remember{mutableStateOf<Int?>(null)}
-    fun move(dest:Int){val p=selected?:return;model.change{if(g.move(p,dest)){selected=null;note="Good move.";if(g.won&&!g.rewarded){g.rewarded=true;model.game.bankroll+=100;note="Complete! +100 chips"}}else note="That card cannot move there."}}
-    fun select(p:SolitairePick){
-        if(selected==p){selected=null;return}
-        val dest=((7..10).toList()+(0..6).toList()).firstOrNull{it!=p.pile&&g.legal(p,it)}
-        selected=p
-        if(dest!=null)move(dest)
-    }
-    CasinoFrame(model,"SOLITAIRE",onBack){
-        Text("CLASSIC • DRAW ${g.drawCount} • ${g.moves} MOVES",color=model.room.accent,fontSize=12.sp)
-        Text(when{g.won->"YOU CLEARED THE TABLE • +100 CHIPS";g.stuck->"DEAL LOST • NO MOVES REMAIN • UNDO OR DEAL AGAIN";else->note},color=if(g.stuck)Color(0xFFFFB4A9) else Color.White,fontSize=13.sp,modifier=if(g.stuck)Modifier.testTag("solitaire-stuck") else Modifier)
-        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
-            OutlinedButton(onClick={model.change{g.draw()};selected=null},enabled=!g.won){Text(if(g.stock.isEmpty())"RECYCLE" else "DRAW (${g.stock.size})")}
-            OutlinedButton(onClick={model.change{g.undo()};selected=null},enabled=g.canUndo){Text("UNDO")}
-            TextButton(onClick={val h=g.hint();if(h!=null){selected=h.first;note="Try ${if(h.second>=7)"foundation ${h.second-6}" else "column ${h.second+1}"}."}else note=if(g.stuck)"No moves remain. Undo or deal a new game." else if(g.stock.isNotEmpty()||g.waste.isNotEmpty())"Try drawing or recycling the stock." else "No available moves. Try undo or a new deal."}){Text("HINT")}
-        }
-        BoxWithConstraints(Modifier.fillMaxWidth()){
-        val cardWidth=(maxWidth-24.dp)/7
-        val cardHeight=cardWidth*1.42f
-        Column(Modifier.fillMaxWidth()){
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){
-                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("STOCK",color=Color.LightGray,fontSize=10.sp);Box(Modifier.clickable{model.change{g.draw()};selected=null}){if(g.stock.isNotEmpty())CardView("?",cardWidth,cardHeight) else CardSlot("↻",cardWidth,cardHeight)}}
-                Column(Modifier.width(cardWidth),horizontalAlignment=Alignment.CenterHorizontally){Text("WASTE",color=Color.LightGray,fontSize=10.sp);val p=SolitairePick(-1,g.waste.lastIndex);Box(Modifier.solitaireDrag(drag,g.waste.isNotEmpty(),p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent).clickable{if(g.waste.isNotEmpty())select(p)}){g.waste.lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("—",cardWidth,cardHeight)}}
-                Spacer(Modifier.width(cardWidth))
-                repeat(4){f->Column(Modifier.width(cardWidth).onGloballyPositioned{targets[f+7]=it.boundsInRoot()},horizontalAlignment=Alignment.CenterHorizontally){Text("HOME ${f+1}",color=model.room.accent,fontSize=10.sp);Box(Modifier.clickable{if(selected!=null)move(f+7)else if(g.foundations[f].isNotEmpty())selected=SolitairePick(f+7,g.foundations[f].lastIndex)}){g.foundations[f].lastOrNull()?.let{CardView(it.toString(),cardWidth,cardHeight)}?:CardSlot("A",cardWidth,cardHeight)}}}
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
-                repeat(7){c->Column(Modifier.width(cardWidth).zIndex(if(drag.pick?.pile==c)30f else 0f)){
-                    Text("${c+1}",color=model.room.accent,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
-                    val count=g.columns[c].size
-                    Box(Modifier.width(cardWidth).height((maxOf(0,count-1)*30+100).dp).testTag("sol-column-$c").onGloballyPositioned{targets[c]=it.boundsInRoot()}){
-                        if(count==0)Box(Modifier.clickable{move(c)}){CardSlot("K",cardWidth,cardHeight)}
-                        g.columns[c].forEachIndexed{i,card->val p=SolitairePick(c,i)
-                            Box(Modifier.offset(y=(i*30).dp).testTag("sol-card-$c-$i").solitaireDrag(drag,i>=g.hidden[c],p,targets){selected=p;move(it)}.border(if(selected==p)3.dp else 0.dp,model.room.accent,RoundedCornerShape(12.dp)).clickable{
-                                if(selected!=null&&selected!!.pile!=c)move(c)else if(i>=g.hidden[c])select(p)
-                            }){CardView(if(i<g.hidden[c])"?" else card.toString(),cardWidth,cardHeight)}
-                        }
-                    }
-                }}
-            }
-        }
-        }
-        Text("Build down in alternating colours; empty columns take kings. Foundations build A → K by suit. Unlimited stock recycling.",fontSize=12.sp,color=Color.LightGray)
-        Row{TextButton(onClick={newDraw=1}){Text("NEW • DRAW 1")};TextButton(onClick={newDraw=3}){Text("NEW • DRAW 3")}}
-    }
-    if(newDraw!=null)AlertDialog(onDismissRequest={newDraw=null},title={Text("Deal new solitaire?")},text={Text("Replaces this solitaire layout. Your other games and chips stay saved.")},confirmButton={TextButton(onClick={model.change{model.casino.solitaire=SolitaireGame(newDraw!!)};selected=null;newDraw=null;note="New deal. Good luck."}){Text("DEAL NEW")}},dismissButton={TextButton(onClick={newDraw=null}){Text("CANCEL")}})
-}
-@Composable
-private fun CardSlot(text:String,width:androidx.compose.ui.unit.Dp,height:androidx.compose.ui.unit.Dp=94.dp){Box(Modifier.size(width,height).border(1.dp,LocalRoomStyle.current.accent.copy(alpha=.5f),RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha=.3f)),contentAlignment=Alignment.Center){Text(text,color=LocalRoomStyle.current.accent,fontSize=25.sp)}}
-
-@Composable
-internal fun PokerScreen(model:BlackjackViewModel,onBack:()->Unit){
-    val g=model.casino.poker
-    fun rivalName(i:Int)=if(i==0)"You" else RoomStyle.entries[(model.room.ordinal+i-1)%RoomStyle.entries.size].host
-    fun castText(text:String):String { var result=text;g.seats.drop(1).forEachIndexed{j,p->result=result.replace(p.name,rivalName(j+1))};return result }
-    var rules by remember{mutableStateOf(false)}
-    var raiseTarget by remember(g.hand,g.actor,g.currentBet){mutableIntStateOf(g.currentBet+g.minRaise)}
-    LaunchedEffect(g,g.actor,g.active,model.revision){if(g.active&&g.actor>0){delay(1100);model.change{g.botStep()}}}
-    HumanReactionVoice(g.hand,if(g.showdown&&g.seats.isNotEmpty()){
-        if(g.seats[0].expression==3)HumanReaction.FRUSTRATED else HumanReaction.CHEER
-    }else null,model.settings.voices)
-    CasinoFrame(model,"POKER",onBack){
-        Text("NO-LIMIT TEXAS HOLD’EM • 5 / 10",color=model.room.accent,fontSize=12.sp)
-        if(!g.seated){
-            Text("Three rivals. Three ways to read the room.",fontSize=23.sp,color=Color.White)
-            Text("Buy in with 100–500 virtual chips from your bankroll. Your stack stays at this table until you cash out between hands. Opponents have individual betting habits and imperfect tells.",color=Color.LightGray)
-            Button(onClick={val amount=minOf(500,model.game.bankroll.toInt());if(amount>=100)model.change{g.sit(amount,model.room.ordinal);model.game.bankroll-=amount}},enabled=model.game.bankroll>=100,modifier=Modifier.fillMaxWidth().testTag("poker-buyin")){Text("TAKE A SEAT • ${minOf(500,model.game.bankroll.toInt())} CHIPS")}
-            if(model.game.bankroll in 10.0..99.99)Text("This table needs at least 100 chips. Solitaire is free and awards 100 for a win.",color=model.room.accent)
-        }else{
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)){
-                g.seats.drop(1).forEachIndexed{j,p->val i=j+1
-                    Surface(Modifier.weight(1f).testTag("poker-opponent-$i"),color=Color(0xD91A1420),shape=RoundedCornerShape(16.dp),border=BorderStroke(if(g.actor==i)2.dp else 1.dp,if(g.actor==i)model.room.accent else Color.DarkGray)){
-                        Column(Modifier.padding(7.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                            PokerPortrait(p,j,g.actor==i,Modifier.fillMaxWidth().height(92.dp))
-                            Text(RoomStyle.entries[(model.room.ordinal+j)%RoomStyle.entries.size].host,color=model.room.accent,fontWeight=FontWeight.Black,fontSize=11.sp,maxLines=2,textAlign=TextAlign.Center,modifier=Modifier.height(32.dp))
-                            Text("${p.stack} chips",color=Color.White,fontSize=12.sp)
-                            val mood=when(p.expression){1->"GRIN";2->"STONE-COLD";3->"FIRED UP";4->"SHOWING OFF";5->"TENSE";else->"WATCHING"}
-                            Text(if(p.folded)"FOLDED" else listOf(mood,p.lastAction).filter{it.isNotEmpty()}.joinToString(" • "),color=if(p.folded)Color.LightGray else model.room.accent,fontSize=9.sp,textAlign=TextAlign.Center,maxLines=1,modifier=Modifier.height(18.dp).testTag("poker-reaction-$i"))
-                            if(p.hole.isNotEmpty())Row(horizontalArrangement=Arrangement.spacedBy(2.dp)){p.hole.forEach{CardView(if(g.showdown&&!p.folded)it.toString() else "?",30.dp,42.dp)}}
-                        }
-                    }
-                }
-            }
-            Surface(color=Color(0xD90A2620),shape=RoundedCornerShape(30.dp),border=BorderStroke(2.dp,model.room.accent),modifier=Modifier.fillMaxWidth()){
-                Column(Modifier.padding(9.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                    Text("POT ${g.pot} • HAND ${g.hand}",color=model.room.accent,fontSize=18.sp,fontWeight=FontWeight.Black)
-                    Row(Modifier.padding(vertical=7.dp),horizontalArrangement=Arrangement.spacedBy(5.dp)){repeat(5){i->g.board.getOrNull(i)?.let{CardView(it.toString(),49.dp,72.dp)}?:Box(Modifier.size(49.dp,72.dp).border(1.dp,Color.White.copy(alpha=.15f),RoundedCornerShape(8.dp)))}}
-                    Text(castText(g.message),color=Color.White,fontSize=13.sp,textAlign=TextAlign.Center)
-                }
-            }
-            val p=g.seats[0]
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("YOUR STACK ${p.stack}",color=model.room.accent,fontWeight=FontWeight.Black);Text("In this street: ${p.streetBet}",color=Color.LightGray,fontSize=12.sp);Text("Button: ${rivalName(g.button)}",color=Color.LightGray,fontSize=12.sp)};p.hole.forEach{CardView(it.toString(),50.dp,72.dp);Spacer(Modifier.width(5.dp))}}
-            if(g.active){
-                val yourTurn=g.actor==0
-                Text(if(yourTurn)"YOUR MOVE" else "${rivalName(g.actor)} is thinking…",color=model.room.accent,fontWeight=FontWeight.Bold)
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                    OutlinedButton(onClick={model.change{g.act(PokerAction.FOLD)}},enabled=yourTurn,modifier=Modifier.weight(1f)){Text("FOLD")}
-                    Button(onClick={model.change{g.act(PokerAction.CALL)}},enabled=yourTurn,modifier=Modifier.weight(1f)){Text(if(g.toCall(0)==0)"CHECK" else "CALL ${minOf(g.toCall(0),p.stack)}")}
-                }
-                if(yourTurn&&g.canRaise(0)){
-                    val cap=p.stack+p.streetBet;val minimum=minOf(cap,g.currentBet+g.minRaise)
-                    val target=raiseTarget.coerceIn(minimum,cap)
-                    if(cap>minimum)Slider(value=target.toFloat(),onValueChange={raiseTarget=it.toInt()},valueRange=minimum.toFloat()..cap.toFloat())
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                        Button(onClick={model.change{g.act(PokerAction.RAISE,target)}},modifier=Modifier.weight(1f)){Text("RAISE TO $target")}
-                        OutlinedButton(onClick={model.change{g.act(PokerAction.RAISE,cap)}},modifier=Modifier.weight(1f)){Text("ALL-IN")}
-                    }
-                }
-                Text("You can visit the lobby; this hand pauses until you return.",fontSize=11.sp,color=Color.LightGray)
-            }else{
-                Button(onClick={model.change{g.startHand()}},enabled=p.stack>0,modifier=Modifier.fillMaxWidth().testTag("poker-deal")){Text(if(g.hand==0)"DEAL FIRST HAND" else "NEXT HAND")}
-                OutlinedButton(onClick={model.change{model.game.bankroll+=g.cashOut()}},modifier=Modifier.fillMaxWidth()){Text("CASH OUT • ${p.stack} CHIPS")}
-            }
-            if(g.log.isNotEmpty())Text(castText(g.log.last()),color=Color.LightGray,fontSize=11.sp,maxLines=1)
-        }
-        TextButton(onClick={rules=true}){Text("RULES & READING YOUR RIVALS")}
-    }
-    if(rules)AlertDialog(onDismissRequest={rules=false},title={Text("Read the player. Play the cards.")},text={Column(Modifier.verticalScroll(rememberScrollState())){Text("Best five cards from your two cards and the five community cards win. Blinds rotate, minimum raises follow the last full raise, and all-ins create side pots. Ties split the pot; odd chips go clockwise from the button. No rake.\n")
-        PokerPersonality.entries.forEach{Text("${it.label}: ${when(it){PokerPersonality.BULLY->"Pressures the table with raises.";PokerPersonality.ROCK->"Patient and selective.";PokerPersonality.SHOWBOAT->"Loves a dramatic bluff.";PokerPersonality.GAMBLER->"Chases draws and takes chances.";PokerPersonality.VETERAN->"Mixes tactics and notices your aggression."}}")}
-        Text("\nWatch expressions and gestures across several hands. They are clues, not guarantees. Rivals cannot see your cards or the actual future deck. Busted opponents re-buy 500 virtual chips between hands.")}},confirmButton={TextButton(onClick={rules=false}){Text("LET’S PLAY")}})
-}
-
-@Composable
-private fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifier){
+internal fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifier){
     val room=RoomStyle.entries[(LocalRoomStyle.current.ordinal+index)%RoomStyle.entries.size]
     val context=LocalContext.current
     var sheet by remember(room){mutableStateOf<ImageBitmap?>(null)}
@@ -372,8 +242,7 @@ private fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifier
     Canvas(Modifier.fillMaxSize().clipToBounds()){
         if(sheet==null)drawCircle(room.accent.copy(alpha=.4f),size.minDimension*.12f,center,style=Stroke(2.dp.toPx()))
         // Use the very same keyed animation atlas as the blackjack dealer.
-        sheet?.let{drawDealerPose(it,room,frame,-size.width*.16f,size.width*1.32f)}
-        drawLine(room.accent,Offset(0f,size.height-2f),Offset(size.width,size.height-2f),4f)
+        sheet?.let{drawDealerPose(it,room,frame,(size.width-minOf(size.width,size.height*1.07f))/2f,minOf(size.width,size.height*1.07f))}
     }
     }
 }
@@ -395,25 +264,4 @@ private fun BanditLever(spinning:Boolean,enabled:Boolean,onPull:()->Unit,modifie
         drawCircle(Color(0xFF851E2B),size.width*.29f,knob)
         drawCircle(Color(0xFFE66562),size.width*.09f,knob-Offset(size.width*.08f,size.width*.09f))
     }
-}
-
-private class SolitaireDragState {
-    var pick by mutableStateOf<SolitairePick?>(null)
-    var shift by mutableStateOf(Offset.Zero)
-}
-
-@Composable
-private fun Modifier.solitaireDrag(state:SolitaireDragState,enabled:Boolean,pick:SolitairePick,targets:Map<Int,Rect>,onDrop:(Int)->Unit):Modifier {
-    var origin by remember{mutableStateOf(Offset.Zero)}
-    var dragOrigin by remember{mutableStateOf(Offset.Zero)}
-    val drop by rememberUpdatedState(onDrop)
-    val follows=state.pick?.let{it.pile==pick.pile&&pick.index>=it.index}==true
-    return this.onGloballyPositioned{origin=it.boundsInRoot().topLeft}
-        .zIndex(if(follows)20f else 0f)
-        .graphicsLayer{translationX=if(follows)state.shift.x else 0f;translationY=if(follows)state.shift.y else 0f}
-        .pointerInput(enabled,pick){if(enabled)detectDragGesturesAfterLongPress(
-            onDragStart={dragOrigin=origin;state.pick=pick;state.shift=Offset.Zero},
-            onDragEnd={val point=dragOrigin+state.shift+Offset(size.width/2f,size.height/2f);targets.entries.firstOrNull{it.key!=pick.pile&&it.value.contains(point)}?.let{drop(it.key)};state.shift=Offset.Zero;state.pick=null},
-            onDragCancel={state.shift=Offset.Zero;state.pick=null},
-            onDrag={change,amount->change.consume();state.shift+=amount})}
 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -114,7 +115,8 @@ internal fun CrapsScreen(model: BlackjackViewModel, onBack: () -> Unit) {
 private fun ColumnScope.CrapsControls(model: BlackjackViewModel, rolling: Boolean,
     canShoot: Boolean, shoot: () -> Unit) {
     val game = model.craps
-    Text(game.message, color = Color(0xFFF5E8D1), fontSize = 14.sp,
+    var help by remember { mutableStateOf(false) }
+    Text(when { rolling -> ""; game.winner == CrapsWinner.PLAYER -> "YOU WIN"; game.winner == CrapsWinner.OPPONENT -> "HAND LOST"; game.active -> "${game.dieOne + game.dieTwo} · POINT ${game.point}"; else -> "" }, color = Color(0xFFF5E8D1), fontSize = 14.sp,
         modifier = Modifier.fillMaxWidth().testTag("craps-message"), textAlign = TextAlign.Center)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf(10, 25, 50, 100).forEach { amount ->
@@ -130,16 +132,16 @@ private fun ColumnScope.CrapsControls(model: BlackjackViewModel, rolling: Boolea
     Button(onClick = shoot, enabled = canShoot,
         modifier = Modifier.fillMaxWidth().height(52.dp).testTag("craps-roll")) {
         Text(when {
-            rolling -> "SHAKE • THROW • LET THEM LAND"
-            game.winner != CrapsWinner.NONE -> "COLLECTING THE POT…"
-            game.active -> "SHOOT FOR " + if (game.point == 0) "THE COME-OUT" else game.point
-            else -> "PUT $" + game.bet + " IN • SHOOT"
+            rolling -> "ROLLING…"
+            game.winner != CrapsWinner.NONE -> "COLLECTING…"
+            game.active -> "ROLL · POINT " + game.point
+            else -> "ROLL · $" + game.bet
         }, fontSize = 13.sp, fontWeight = FontWeight.Black)
     }
-    Text(if (game.active) "Both wagers stay in the street until the point is made or a 7 ends the hand."
-        else "7 / 11 wins the come-out. 2 / 3 / 12 loses. Otherwise make your point before a 7.",
-        color = Color(0xFFC9C1B6), fontSize = 11.sp, textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth())
+    TextButton(onClick = { help = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("RULES", fontSize = 11.sp) }
+    if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text("Street craps") }, text = {
+        Text("Choose your stake and tap Roll or the dice hand. Your opponent matches the stake.\n\n7 or 11 wins the first roll; 2, 3 or 12 loses. Any other total sets the point. Make it again before rolling 7 to win.\n\nThe winner reaches in and collects the bills. Virtual money only.")
+    }, confirmButton = { TextButton(onClick = { help = false }) { Text("CLOSE") } })
 }
 
 @Composable
@@ -165,9 +167,7 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         Column(Modifier.align(Alignment.TopCenter).padding(top = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
             CrapsOpponent(model.room, game.winner, Modifier.size(112.dp, opponentHeight))
-            Text(model.room.host.uppercase(), color = Color(0xFFF4D99D), fontSize = 11.sp,
-                fontWeight = FontWeight.Black, modifier = Modifier.background(Color.Black.copy(alpha = .72f),
-                    RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
+
         }
         Text(if (game.point == 0) "COME OUT" else "POINT " + game.point,
             color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black,
@@ -217,19 +217,23 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
             }
         }
         if (game.centerPot > 0 && billDistance == 0f) {
-            Text("$" + game.centerPot + " IN THE STREET", color = Color(0xFFFFE9B0),
+            Text("$" + game.centerPot, color = Color(0xFFFFE9B0),
                 fontSize = 10.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.Center).offset(y = potY + maxHeight * .14f)
                     .background(Color.Black.copy(alpha = .76f), RoundedCornerShape(5.dp)).padding(5.dp))
         }
         if (collecting) {
             val frame = if (collection < .48f) 1 else if (collection < .60f) 0 else 2
-            HandSprite(hands, frame, Modifier.align(Alignment.Center)
+            val collectorModifier = Modifier.align(Alignment.Center)
                 .offset(y = potY + travel * direction * handDistance)
-                .size(handWidth, handHeight).rotate(if (direction < 0) 180f else 0f)
+                .size(handWidth, handHeight)
                 .testTag("craps-collector").semantics {
                     contentDescription = if (direction < 0) "Opponent hand collecting the money" else "Player hand collecting the money"
-                })
+                    stateDescription = if (direction < 0) "Opponent: ${model.room.id}" else "Player: tattooed hand"
+                }
+            if (game.winner == CrapsWinner.OPPONENT) {
+                OpponentHand(model.room, collection >= .48f, collectorModifier)
+            } else HandSprite(hands, frame, collectorModifier)
         }
         val shake = if (rolling && throwProgress < .46f) sin(throwProgress * 70f) else 0f
         val frame = if (rolling && throwProgress >= .46f) 7 else 2
@@ -287,6 +291,45 @@ private fun DrawScope.drawDie(value: Int, center: Offset, side: Float, angle: Fl
         }
         positions.forEach { (x, y) ->
             drawCircle(Color(0xFF251C17), side * .068f, top + Offset(side * (.26f + x * .24f), side * (.26f + y * .24f)))
+        }
+    }
+}
+
+
+@Composable
+private fun OpponentHand(room: RoomStyle, gripping: Boolean, modifier: Modifier) {
+    val context = LocalContext.current
+    var atlas by remember(room) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(room) { atlas = withContext(Dispatchers.Default) { decodeDealer(context, room) } }
+    Canvas(modifier) {
+        atlas?.let { sheet ->
+            // Isolate the forward arm of the approved dealing pose, including its
+            // skin tone, cuff, jewelry and tattoos. Never reuse the player's atlas.
+            val rows = when (room) {
+                RoomStyle.CARNIVAL -> intArrayOf(356,702)
+                RoomStyle.PUNK -> intArrayOf(362,716)
+                RoomStyle.IRON -> intArrayOf(358,712)
+                RoomStyle.EGYPT -> intArrayOf(366,728)
+                RoomStyle.GREEN -> intArrayOf(362,724)
+                else -> intArrayOf(364,723)
+            }
+            val cw = sheet.width / 4
+            val rowTop = (rows[0] * sheet.height / 1086f).roundToInt()
+            val rowHeight = ((rows[1]-rows[0]) * sheet.height / 1086f).roundToInt()
+            val mask = Path().apply {
+                moveTo(size.width*.42f,0f); lineTo(size.width*.92f,0f)
+                lineTo(size.width*.78f,size.height*.58f); lineTo(size.width,size.height*.84f)
+                lineTo(size.width*.94f,size.height); lineTo(size.width*.05f,size.height)
+                lineTo(0f,size.height*.84f); lineTo(size.width*.16f,size.height*.63f)
+                lineTo(size.width*.28f,size.height*.40f); close()
+            }
+            clipPath(mask) {
+                drawImage(sheet,
+                    srcOffset = IntOffset(0, rowTop + (rowHeight*.50f).roundToInt()),
+                    srcSize = IntSize((cw*.39f).roundToInt(), (rowHeight*.50f).roundToInt()),
+                    dstSize = IntSize(size.width.roundToInt(), (size.height * if(gripping) .94f else 1f).roundToInt()),
+                    filterQuality = FilterQuality.Medium)
+            }
         }
     }
 }

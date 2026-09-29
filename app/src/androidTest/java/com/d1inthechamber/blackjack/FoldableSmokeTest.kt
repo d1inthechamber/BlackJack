@@ -30,7 +30,7 @@ class FoldableSmokeTest {
         assertTrue("$tag must remain vertically visible",item.top>=root.top&&item.bottom<=root.bottom)
     }
     private fun capture(name:String){
-        rule.waitUntil(15000){
+        if(rule.onAllNodesWithTag("craps-opponent").fetchSemanticsNodes().isNotEmpty()) rule.waitUntil(15000){
             rule.onAllNodes(hasTestTag("craps-opponent") and SemanticsMatcher.expectValue(
                 androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready"))
                 .fetchSemanticsNodes().size==1
@@ -44,20 +44,38 @@ class FoldableSmokeTest {
         shell("cp ${file.absolutePath} /sdcard/Download/fold-$name.png")
     }
 
+    private fun checkCardTables(mode:String) {
+        rule.onNodeWithTag("nav-games").performClick()
+        rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
+        visibleInsideRoot("sol-stock");visibleInsideRoot("sol-new");visibleInsideRoot("sol-hint")
+        repeat(7) { visibleInsideRoot("sol-column-$it") }
+        capture("solitaire-$mode")
+        rule.onNodeWithTag("nav-games").performClick()
+        rule.onNodeWithText("POKER").performScrollTo().performClick()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { if(!m.casino.poker.seated)m.change { m.casino.poker.sit(500,m.room.ordinal);m.game.bankroll-=500 } }
+        rule.waitUntil(15000) { rule.onAllNodes(SemanticsMatcher.expectValue(
+            androidx.compose.ui.semantics.SemanticsProperties.StateDescription,"Ready")).fetchSemanticsNodes().size==3 }
+        visibleInsideRoot("poker-table");visibleInsideRoot("poker-deal")
+        capture("poker-$mode")
+        rule.onNodeWithTag("nav-games").performClick()
+        rule.onNodeWithText("CRAPS").performScrollTo().performClick()
+    }
+
     @Test fun unfoldedFoldedAndLandscapeLayoutsRemainUsable(){
         try{
             rule.runOnUiThread{ViewModelProvider(rule.activity)[BlackjackViewModel::class.java].startNew()}
             resize("1840x2208",420)
             visibleInsideRoot("nav-games");visibleInsideRoot("nav-rooms");visibleInsideRoot("settings-button")
             rule.onNodeWithText("CRAPS").performScrollTo().performClick()
-            visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("unfolded")
+            visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("unfolded");checkCardTables("unfolded")
 
             resize("1080x2092",420)
-            visibleInsideRoot("nav-games");visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("folded")
+            visibleInsideRoot("nav-games");visibleInsideRoot("craps-street");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("folded");checkCardTables("folded")
 
             rule.runOnUiThread{rule.activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE}
             rule.waitUntil(10000){rule.activity.resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE}
-            visibleInsideRoot("nav-games");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("landscape")
+            visibleInsideRoot("nav-games");rule.onNodeWithTag("craps-roll").performScrollTo();visibleInsideRoot("craps-roll");capture("landscape");checkCardTables("landscape")
         }finally{
             rule.runOnUiThread{rule.activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED}
             shell("wm size reset");shell("wm density reset")
