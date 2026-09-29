@@ -242,7 +242,7 @@ internal fun PokerPortrait(p:PokerSeat,index:Int,acting:Boolean,modifier:Modifie
     Canvas(Modifier.fillMaxSize().clipToBounds()){
         if(sheet==null)drawCircle(room.accent.copy(alpha=.4f),size.minDimension*.12f,center,style=Stroke(2.dp.toPx()))
         // Use the very same keyed animation atlas as the blackjack dealer.
-        sheet?.let{drawDealerPose(it,room,frame,(size.width-minOf(size.width,size.height*1.07f))/2f,minOf(size.width,size.height*1.07f))}
+        sheet?.let{drawDealerPose(it,room,frame,(size.width-minOf(size.width,size.height))/2f,minOf(size.width,size.height))}
     }
     }
 }

@@ -157,6 +157,7 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
     BoxWithConstraints(modifier.clip(RoundedCornerShape(20.dp)).border(1.dp,
         model.room.accent.copy(alpha = .65f), RoundedCornerShape(20.dp)).testTag("craps-street")) {
         val sceneRevision = model.revision
+        val centerPot = game.centerPot
         Image(painterResource(R.drawable.craps_alley), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(
             Color.Black.copy(alpha = .28f), Color.Transparent, Color.Black.copy(alpha = .22f)))))
@@ -204,11 +205,11 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         Canvas(Modifier.align(Alignment.Center).offset(y = potY + travel * direction * billDistance)
             .size(maxWidth * .64f, maxHeight * .23f).graphicsLayer { scaleX = billScale; scaleY = billScale }.testTag("craps-money-pile")
             .semantics {
-                contentDescription = "Central pile of $" + game.centerPot + " in virtual American bills"
+                contentDescription = "Central pile of $" + centerPot + " in virtual American bills"
                 stateDescription = if (billDistance == 0f) "Centered" else if (direction < 0) "Moving to opponent" else "Moving to player"
             }) {
-            if (game.centerPot > 0) {
-                val count = (game.centerPot / 25).coerceIn(2, 6)
+            if (centerPot > 0) {
+                val count = (centerPot / 25).coerceIn(2, 6)
                 repeat(count) { i ->
                     val w = size.width * .83f
                     val h = w * bill.height / bill.width
@@ -224,8 +225,8 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
                 }
             }
         }
-        if (game.centerPot > 0 && billDistance == 0f) {
-            Text("$" + game.centerPot, color = Color(0xFFFFE9B0),
+        if (centerPot > 0 && billDistance == 0f) {
+            Text("$" + centerPot, color = Color(0xFFFFE9B0),
                 fontSize = 10.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.Center).offset(y = potY + maxHeight * .14f)
                     .background(Color.Black.copy(alpha = .76f), RoundedCornerShape(5.dp)).padding(5.dp))
@@ -323,32 +324,32 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, shoulderX: Dp, shou
     val context = LocalContext.current
     var atlas by remember(room) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(room) { atlas = withContext(Dispatchers.Default) { decodeDealer(context, room) } }
+    val rows = when (room) {
+        RoomStyle.CARNIVAL -> intArrayOf(356,702)
+        RoomStyle.PUNK -> intArrayOf(362,716)
+        RoomStyle.IRON -> intArrayOf(358,712)
+        RoomStyle.EGYPT -> intArrayOf(366,728)
+        RoomStyle.GREEN -> intArrayOf(362,724)
+        else -> intArrayOf(364,723)
+    }
+    // Use the original upper-sleeve texture for the perspective joint.
+    val sleeve = remember(atlas, room) { atlas?.let {
+        val cw = it.width / 4
+        val rowTop = (rows[0] * it.height / 1086f).roundToInt()
+        val rowHeight = ((rows[1]-rows[0]) * it.height / 1086f).roundToInt()
+        android.graphics.Bitmap.createBitmap(it.asAndroidBitmap(), (cw*.17f).roundToInt(),
+            rowTop + (rowHeight*.38f).roundToInt(), (cw*.13f).roundToInt(), (rowHeight*.13f).roundToInt())
+    } }
+    val sleevePaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG) }
     Canvas(modifier) {
         atlas?.let { sheet ->
             // Isolate the forward arm of the approved dealing pose, including its
             // skin tone, cuff, jewelry and tattoos. Never reuse the player's atlas.
-            val rows = when (room) {
-                RoomStyle.CARNIVAL -> intArrayOf(356,702)
-                RoomStyle.PUNK -> intArrayOf(362,716)
-                RoomStyle.IRON -> intArrayOf(358,712)
-                RoomStyle.EGYPT -> intArrayOf(366,728)
-                RoomStyle.GREEN -> intArrayOf(362,724)
-                else -> intArrayOf(364,723)
-            }
             val cw = sheet.width / 4
             val rowTop = (rows[0] * sheet.height / 1086f).roundToInt()
             val rowHeight = ((rows[1]-rows[0]) * sheet.height / 1086f).roundToInt()
             // Taper the sleeve into the character's lower torso, keeping the
             // face clear and the original cuff and tattoos at their proportions.
-            val sleeveColor = when(room) {
-                RoomStyle.VEGAS -> Color(0xFFD6C4A4)
-                RoomStyle.CARNIVAL -> Color(0xFF874318)
-                RoomStyle.EGYPT -> Color(0xFFE5D3B4)
-                RoomStyle.IRON -> Color(0xFF252326)
-                RoomStyle.WEST -> Color(0xFF262024)
-                RoomStyle.PUNK -> Color(0xFFE8BDA4)
-                RoomStyle.GREEN -> Color(0xFFE0D3BB)
-            }
             val anchorX = shoulderX.toPx()
             val anchorY = shoulderY.toPx()
             val anchorHalf = shoulderHalfWidth.toPx()
@@ -358,10 +359,13 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, shoulderX: Dp, shou
                 lineTo(size.width*.81f,size.height*.08f)
                 lineTo(size.width*.34f,size.height*.08f);close()
             }
-            drawPath(extension, Brush.horizontalGradient(listOf(
-                sleeveColor.copy(red=sleeveColor.red*.65f,green=sleeveColor.green*.65f,blue=sleeveColor.blue*.65f),
-                sleeveColor,sleeveColor), startX=size.width*.34f,endX=size.width*.78f))
-            drawPath(extension,Color(0xFF211A18),style=Stroke(1.2.dp.toPx()))
+            sleeve?.let { texture ->
+                drawContext.canvas.nativeCanvas.drawBitmapMesh(texture, 1, 1, floatArrayOf(
+                    anchorX-anchorHalf,anchorY, anchorX+anchorHalf,anchorY,
+                    size.width*.34f,size.height*.08f, size.width*.81f,size.height*.08f),
+                    0, null, 0, sleevePaint)
+            }
+            drawPath(extension,Color(0xFF514032),style=Stroke(.6.dp.toPx()))
             // The outer forearm boundary differs by costume. These small masks
             // exclude adjacent torso pixels without altering the character art.
             val edge = when(room) {

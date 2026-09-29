@@ -105,14 +105,16 @@ private fun PokerTable(model: BlackjackViewModel, modifier: Modifier) {
         val cardW = minOf(w / 7.4f, h * if (compact) .10f else .13f).coerceAtLeast(21.dp)
         val cardH = cardW * 1.40f
         val actorW = w * .32f
+        val railY = h * if (compact) .21f else .27f
+        val actorSize = minOf(actorW, railY * 1.05f)
         // Torso bases sit at the back rail; the rail occludes their lower edge.
         seats.drop(1).forEachIndexed { j, p ->
             val x = w * (.17f + j * .33f) - actorW / 2
-            val y = if (j == 1) 0.dp else h * .035f
+            val y = railY - actorSize * .93f
             PokerPortrait(if (g.showdown) p.copy(expression = if (p.expression == 3) 4 else 3) else p, j, g.active && g.actor == j + 1,
-                Modifier.offset(x, y).size(actorW, h * if (compact) .27f else .34f))
+                Modifier.offset(x, y).size(actorW, actorSize))
         }
-        TableFelt(Modifier.offset(y = h * if (compact) .21f else .27f).fillMaxWidth().height(h * if (compact) .78f else .72f), oval = true)
+        TableFelt(Modifier.offset(y = railY).fillMaxWidth().height(h * if (compact) .78f else .72f), oval = true)
         seats.drop(1).forEachIndexed { j, p ->
             val acting = g.active && g.actor == j + 1
             val x = w * (.17f + j * .33f) - actorW / 2

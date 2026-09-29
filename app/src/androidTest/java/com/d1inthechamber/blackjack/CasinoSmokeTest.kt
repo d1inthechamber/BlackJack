@@ -2,6 +2,7 @@ package com.d1inthechamber.blackjack
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.lifecycle.ViewModelProvider
 import org.junit.Rule
 import org.junit.Test
@@ -122,6 +123,18 @@ class CasinoSmokeTest {
         rule.onNodeWithText("POINT 8").assertIsDisplayed()
         rule.onNodeWithTag("craps-money-pile").assertIsDisplayed()
         shot("craps")
+        // Check rendered banknote paper on the unobstructed left side of the
+        // pile. A present but stale/empty Canvas must not pass this check.
+        val paper=rule.onNodeWithTag("craps-money-pile").captureToImage().toPixelMap()
+        var bright=0;var samples=0
+        for(y in paper.height/3 until paper.height*2/3 step 4) {
+            for(x in paper.width/10 until paper.width/4 step 4) {
+                val pixel=paper[x,y]
+                if(pixel.red*.2126f+pixel.green*.7152f+pixel.blue*.0722f>.48f)bright++
+                samples++
+            }
+        }
+        assertTrue("The visible pot must contain the banknotes",bright>samples*.15f)
 
         rule.mainClock.autoAdvance=false
         try{
