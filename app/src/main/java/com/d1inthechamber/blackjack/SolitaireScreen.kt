@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.contentDescription
@@ -38,6 +39,7 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
     val revision = model.revision
     val audio=LocalCasinoAudio.current
     val leftHanded=model.settings.leftHanded
+    val compact=LocalConfiguration.current.screenHeightDp<480
     val targets = remember(g) { mutableMapOf<Int, Rect>() }
     val drag = remember(g) { SolitaireDragState() }
     var selected by remember(g) { mutableStateOf<SolitairePick?>(null) }
@@ -76,14 +78,14 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
         if (finishing) return
         model.change {
             if (g.move(pick, dest)) { audio?.play(if(dest>=7) CasinoSound.CARD_PLACE else CasinoSound.CARD);selected = null; hint = null; note = ""; reward() }
-            else {audio?.play(CasinoSound.INVALID,.3f);note = "Try another pile"}
+            else {audio?.play(CasinoSound.INVALID,.3f);note = if(dest>=7) "Foundations build up by suit, starting with an ace." else "Use the opposite colour, one rank higher. Empty columns take kings."}
         }
     }
     fun select(p: SolitairePick) {
         if (finishing) return
         audio?.play(CasinoSound.TAP,.55f)
         val previous = selected
-        if (previous != null && previous.pile != p.pile && g.legal(previous, p.pile)) { move(previous, p.pile); return }
+        if (previous != null && previous.pile != p.pile) { move(previous, p.pile); return }
         val dest = ((7..10).toList() + (0..6).toList()).firstOrNull {
             g.legal(p, it) && !(it < 7 && g.columns[it].isEmpty() && p.pile in 0..6 && p.index == 0)
         }
@@ -105,13 +107,6 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
     TableRoom(model, "SOLITAIRE", onBack, { help = true }) {
         // Observe mutations inside this composable content lambda, including controls.
         val screenRevision = model.revision
-        Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
-            Text("DRAW ${g.drawCount} · ${g.moves} MOVES", color=model.room.accent, fontSize=11.sp, modifier=Modifier.weight(1f))
-            TextButton(onClick={model.settings.set("leftHanded",!leftHanded);selected=null;hint=null},
-                modifier=Modifier.testTag("sol-handedness"), contentPadding=PaddingValues(horizontal=8.dp)) {
-                Text(if(leftHanded) "LEFT HAND" else "RIGHT HAND", fontSize=11.sp)
-            }
-        }
         val status=when {
             g.won -> "Table cleared! +100 chips. Start a new deal."
             checking -> "Checking available moves…"
@@ -123,7 +118,16 @@ internal fun SolitaireScreen(model: BlackjackViewModel, onBack: () -> Unit) {
             g.waste.isNotEmpty() -> "Recycle the stock to look for the next move."
             else -> "Try moving a foundation card back to the table. Use Undo if needed."
         }
-        Surface(color=if(stuck) Color(0xFF49251E) else Color(0xDD18231D), shape=RoundedCornerShape(8.dp),
+        Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+            Text("DRAW ${g.drawCount} · ${g.moves} MOVES", color=model.room.accent, fontSize=11.sp, modifier=if(compact) Modifier.width(125.dp) else Modifier.weight(1f))
+            if(compact) Text(status,color=Color.White,fontSize=11.sp,modifier=Modifier.weight(1f)
+                .semantics { liveRegion=LiveRegionMode.Polite }.testTag(if(stuck) "solitaire-stuck" else "solitaire-status"))
+            TextButton(onClick={model.settings.set("leftHanded",!leftHanded);selected=null;hint=null},
+                modifier=Modifier.testTag("sol-handedness"), contentPadding=PaddingValues(horizontal=8.dp)) {
+                Text(if(leftHanded) "LEFT HAND" else "RIGHT HAND", fontSize=11.sp)
+            }
+        }
+        if(!compact) Surface(color=if(stuck) Color(0xFF49251E) else Color(0xDD18231D), shape=RoundedCornerShape(8.dp),
             modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite }
                 .testTag(if(stuck) "solitaire-stuck" else "solitaire-status")) {
             Text(status,color=Color.White,fontSize=12.sp,modifier=Modifier.padding(8.dp))

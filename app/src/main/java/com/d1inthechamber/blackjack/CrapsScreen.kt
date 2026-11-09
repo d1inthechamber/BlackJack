@@ -171,8 +171,8 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
             Color.Black.copy(alpha = .28f), Color.Transparent, Color.Black.copy(alpha = .22f)))))
         val handWidth = minOf(maxWidth * .42f, maxHeight * .44f)
         val handHeight = handWidth * 4f / 3f
-        val potY = maxHeight * .13f
-        val opponentHeight = (maxHeight * .25f).coerceAtMost(100.dp)
+        val potY = maxHeight * .02f
+        val opponentHeight = (maxHeight * .34f).coerceAtMost(140.dp)
         val opponentThrowing = game.opponentShooter && !collecting && (!rolling || throwProgress < .50f)
         val opponentHandWidth = minOf(maxWidth * .28f, maxHeight * .27f)
         val opponentHandHeight = opponentHandWidth * 4f / 3f
@@ -180,15 +180,15 @@ private fun CrapsScene(model: BlackjackViewModel, rolling: Boolean, throwProgres
         val opponentPalmY = opponentHandTop + opponentHandHeight * .82f
         // The opponent reaches from the lower torso and receives the pot there.
         // Perspective shrinks the hand and bills together as they move away.
-        val travel = if (direction < 0) maxHeight * .63f - (5.dp + opponentHeight * 1.35f)
-            else maxHeight * .63f + handHeight
+        val travel = if (direction < 0) maxHeight * .52f - (5.dp + opponentHeight * 1.35f)
+            else maxHeight * .52f + handHeight
         val billDistance = if (collecting) collectionBillDistance(collection) else 0f
         val handDistance = collectionHandDistance(collection)
         val handScale = if (direction < 0) 1f - .66f * handDistance else 1f
         val billScale = if (direction < 0) 1f - .66f * billDistance else 1f
         Column(Modifier.align(Alignment.TopCenter).padding(top = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            CrapsOpponent(model.room, game.winner, Modifier.size(112.dp, opponentHeight), opponentThrowing)
+            CrapsOpponent(model.room, game.winner, Modifier.size(opponentHeight, opponentHeight), opponentThrowing)
 
         }
         Text(if (game.point == 0) { if(game.opponentShooter) "OPPONENT ROLLS" else "YOUR ROLL" } else "POINT " + game.point,
@@ -410,44 +410,36 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handT
         contentDescription = if (arm == null) "Loading opponent hand" else description
     }) {
         arm?.let { bitmap ->
-            // Constant bone lengths and a rigid, uniformly scaled hand. No mesh warping.
+            // Two rigid pieces of the original sleeve/hand art. Each piece uses
+            // one uniform scale for the whole animation; joints rotate, never warp.
             val shoulder=ArmPoint(originLeft.toPx()+originWidth.toPx()*.50f,originTop.toPx())
             val target=ArmPoint(handLeft.toPx()+handWidth.toPx()*.50f,
                 handTop.toPx()+handHeight.toPx()*.70f)
-            val upper=size.height*.29f
-            val lower=size.height*.28f
+            val cut=(bitmap.height*.55f).roundToInt()
+            val scale=size.height*.36f/bitmap.height
+            val upper=cut*scale
+            val lower=(bitmap.height-cut)*scale
             val pose=rigidArmPose(shoulder,target,upper,lower)
             val start=Offset(shoulder.x,shoulder.y)
             val elbow=Offset(pose.elbow.x,pose.elbow.y)
             val wrist=Offset(pose.wrist.x,pose.wrist.y)
-            val thickness=originWidth.toPx()*.57f
-            val sleeve=when(room) {
-                RoomStyle.VEGAS -> Color(0xFF67503A)
-                RoomStyle.CARNIVAL -> Color(0xFF6F263F)
-                RoomStyle.EGYPT -> Color(0xFFB88C42)
-                RoomStyle.IRON -> Color(0xFF493F39)
-                RoomStyle.WEST -> Color(0xFF242632)
-                RoomStyle.PUNK -> Color(0xFF2D2736)
-                RoomStyle.GREEN -> Color(0xFF496142)
+            val width=bitmap.width*scale
+            val sleeve=Color(bitmap.getPixel(bitmap.width/2,bitmap.height/5))
+            // A small covered elbow joint prevents a transparent seam while bending.
+            drawCircle(sleeve,width*.17f,elbow)
+            fun piece(from:Offset,to:Offset,sourceTop:Int,sourceBottom:Int,overlap:Float=0f) {
+                val angle=atan2(to.y-from.y,to.x-from.x)*180f/PI.toFloat()-90f
+                val height=(sourceBottom-sourceTop)*scale
+                rotate(angle,from) {
+                    drawContext.canvas.nativeCanvas.drawBitmap(bitmap,
+                        android.graphics.Rect(0,sourceTop,bitmap.width,sourceBottom),
+                        android.graphics.RectF(from.x-width*.5f,from.y-overlap,
+                            from.x+width*.5f,from.y-overlap+height),paint)
+                }
             }
-            // Rounded overlapping joints stay connected at every reach angle.
-            drawLine(Color(0xFF18161B),start,elbow,thickness+3.dp.toPx(),StrokeCap.Round)
-            drawLine(Color(0xFF18161B),elbow,wrist,thickness*.83f+3.dp.toPx(),StrokeCap.Round)
-            drawLine(sleeve,start,elbow,thickness,StrokeCap.Round)
-            drawLine(sleeve,elbow,wrist,thickness*.83f,StrokeCap.Round)
-            drawLine(sleeve.copy(alpha=.45f),start+Offset(-thickness*.15f,0f),elbow,
-                thickness*.17f,StrokeCap.Round)
-            val cropTop=(bitmap.height*.55f).roundToInt()
-            val srcHeight=bitmap.height-cropTop
-            val width=originWidth.toPx()*1.25f
-            val height=width*srcHeight/bitmap.width
-            val angle=atan2(wrist.y-elbow.y,wrist.x-elbow.x)*180f/PI.toFloat()-90f
-            rotate(angle,wrist) {
-                drawContext.canvas.nativeCanvas.drawBitmap(bitmap,
-                    android.graphics.Rect(0,cropTop,bitmap.width,bitmap.height),
-                    android.graphics.RectF(wrist.x-width*.5f,wrist.y-height*.30f,
-                        wrist.x+width*.5f,wrist.y+height*.70f),paint)
-            }
+            piece(start,elbow,0,cut)
+            val overlap=minOf(8,cut)
+            piece(elbow,wrist,cut-overlap,bitmap.height,overlap*scale)
 
         }
     }
