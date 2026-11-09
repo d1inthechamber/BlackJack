@@ -410,28 +410,45 @@ private fun OpponentHand(room: RoomStyle, gripping: Boolean, handLeft: Dp, handT
         contentDescription = if (arm == null) "Loading opponent hand" else description
     }) {
         arm?.let { bitmap ->
-            val width = handWidth.toPx()
-            val height = handHeight.toPx() * if (gripping) .94f else 1f
-            val left = handLeft.toPx()
-            val top = handTop.toPx()
-            val columns = 8
-            val rowsCount = 24
-            val vertices = FloatArray((columns+1)*(rowsCount+1)*2)
-            var index = 0
-            for (row in 0..rowsCount) {
-                val v = row.toFloat()/rowsCount
-                // Only the sleeve bends. The lower forearm and whole hand retain
-                // their artwork proportions while the cash moves with them.
-                val blend = ((.58f-v)/.58f).coerceIn(0f,1f)
-                val bend = blend*blend*(3f-2f*blend)
-                for (column in 0..columns) {
-                    val u = column.toFloat()/columns
-                    val x = left+u*width
-                    vertices[index++] = x+(originLeft.toPx()+u*originWidth.toPx()-x)*bend
-                    vertices[index++] = top+v*height+(originTop.toPx()-top)*bend
-                }
+            // Constant bone lengths and a rigid, uniformly scaled hand. No mesh warping.
+            val shoulder=ArmPoint(originLeft.toPx()+originWidth.toPx()*.50f,originTop.toPx())
+            val target=ArmPoint(handLeft.toPx()+handWidth.toPx()*.50f,
+                handTop.toPx()+handHeight.toPx()*.70f)
+            val upper=size.height*.29f
+            val lower=size.height*.28f
+            val pose=rigidArmPose(shoulder,target,upper,lower)
+            val start=Offset(shoulder.x,shoulder.y)
+            val elbow=Offset(pose.elbow.x,pose.elbow.y)
+            val wrist=Offset(pose.wrist.x,pose.wrist.y)
+            val thickness=originWidth.toPx()*.57f
+            val sleeve=when(room) {
+                RoomStyle.VEGAS -> Color(0xFF67503A)
+                RoomStyle.CARNIVAL -> Color(0xFF6F263F)
+                RoomStyle.EGYPT -> Color(0xFFB88C42)
+                RoomStyle.IRON -> Color(0xFF493F39)
+                RoomStyle.WEST -> Color(0xFF242632)
+                RoomStyle.PUNK -> Color(0xFF2D2736)
+                RoomStyle.GREEN -> Color(0xFF496142)
             }
-            drawContext.canvas.nativeCanvas.drawBitmapMesh(bitmap,columns,rowsCount,vertices,0,null,0,paint)
+            // Rounded overlapping joints stay connected at every reach angle.
+            drawLine(Color(0xFF18161B),start,elbow,thickness+3.dp.toPx(),StrokeCap.Round)
+            drawLine(Color(0xFF18161B),elbow,wrist,thickness*.83f+3.dp.toPx(),StrokeCap.Round)
+            drawLine(sleeve,start,elbow,thickness,StrokeCap.Round)
+            drawLine(sleeve,elbow,wrist,thickness*.83f,StrokeCap.Round)
+            drawLine(sleeve.copy(alpha=.45f),start+Offset(-thickness*.15f,0f),elbow,
+                thickness*.17f,StrokeCap.Round)
+            val cropTop=(bitmap.height*.55f).roundToInt()
+            val srcHeight=bitmap.height-cropTop
+            val width=originWidth.toPx()*1.25f
+            val height=width*srcHeight/bitmap.width
+            val angle=atan2(wrist.y-elbow.y,wrist.x-elbow.x)*180f/PI.toFloat()-90f
+            rotate(angle,wrist) {
+                drawContext.canvas.nativeCanvas.drawBitmap(bitmap,
+                    android.graphics.Rect(0,cropTop,bitmap.width,bitmap.height),
+                    android.graphics.RectF(wrist.x-width*.5f,wrist.y-height*.30f,
+                        wrist.x+width*.5f,wrist.y+height*.70f),paint)
+            }
+
         }
     }
 }

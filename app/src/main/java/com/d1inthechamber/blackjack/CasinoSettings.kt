@@ -23,11 +23,12 @@ import kotlin.math.*
 @Stable
 internal class CasinoSettings(context:Context?=null) {
     private val prefs=context?.getSharedPreferences("audio",Context.MODE_PRIVATE)
+    var leftHanded by mutableStateOf(prefs?.getBoolean("leftHanded",false)?:false);private set
     var music by mutableStateOf(prefs?.getBoolean("music",true)?:true);private set
     var effects by mutableStateOf(prefs?.getBoolean("effects",true)?:true);private set
     var voices by mutableStateOf(prefs?.getBoolean("voices",true)?:true);private set
     var ambience by mutableStateOf(prefs?.getBoolean("ambience",true)?:true);private set
-    fun set(key:String,value:Boolean){when(key){"music"->music=value;"effects"->effects=value;"voices"->voices=value;"ambience"->ambience=value;else->return};prefs?.edit()?.putBoolean(key,value)?.apply()}
+    fun set(key:String,value:Boolean){when(key){"leftHanded"->leftHanded=value;"music"->music=value;"effects"->effects=value;"voices"->voices=value;"ambience"->ambience=value;else->return};prefs?.edit()?.putBoolean(key,value)?.apply()}
 }
 internal val LocalCasinoSettings=staticCompositionLocalOf{CasinoSettings()}
 

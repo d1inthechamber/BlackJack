@@ -24,7 +24,7 @@ internal class CasinoAudio(context: Context) {
         set(value) { field=value; if(!value)stopAll() }
     init {
         pool.setOnLoadCompleteListener { _,id,status -> if(status==0&&!closed)ready.add(id) }
-        val directory=File(context.cacheDir,"casino-sounds-36").apply { mkdirs() }
+        val directory=File(context.cacheDir,"casino-sounds-37").apply { mkdirs() }
         scope.launch {
             CasinoSound.entries.forEach { sound ->
                 ensureActive()

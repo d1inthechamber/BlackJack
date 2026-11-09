@@ -41,6 +41,32 @@ class CasinoSmokeTest {
         shot("solitaire")
         rule.activityRule.scenario.recreate();rule.onNodeWithContentDescription("Draw 1; 24 cards left").assertExists()
     }
+    @Test fun solitaireHandednessMirrorsControlsAndPersistsWithoutRedealing() {
+        reset();rule.onNodeWithText("SOLITAIRE").performScrollTo().performClick()
+        val m=ViewModelProvider(rule.activity)[BlackjackViewModel::class.java]
+        rule.runOnUiThread { m.settings.set("leftHanded",false) }
+        val before=m.casino.solitaire.snapshot()
+        try {
+            rule.onNodeWithTag("sol-handedness").performClick()
+            val stock=rule.onNodeWithTag("sol-stock").fetchSemanticsNode().boundsInRoot
+            val foundation=rule.onNodeWithTag("sol-foundation-3").fetchSemanticsNode().boundsInRoot
+            val draw=rule.onNodeWithTag("sol-draw").fetchSemanticsNode().boundsInRoot
+            val undo=rule.onNodeWithTag("sol-undo").fetchSemanticsNode().boundsInRoot
+            assertTrue(stock.right<foundation.left)
+            assertTrue(draw.right<undo.left)
+            assertEquals(before,m.casino.solitaire.snapshot())
+            shot("solitaire-left")
+            rule.activityRule.scenario.recreate()
+            rule.onNodeWithText("LEFT HAND").assertIsDisplayed()
+            rule.onNodeWithTag("sol-draw").performClick()
+            rule.onNodeWithContentDescription("Draw 1; 23 cards left").assertExists()
+            rule.onNodeWithTag("sol-undo").performClick()
+            rule.onNodeWithTag("sol-handedness").performClick()
+            rule.onNodeWithText("RIGHT HAND").assertIsDisplayed()
+        } finally {
+            rule.runOnUiThread { ViewModelProvider(rule.activity)[BlackjackViewModel::class.java].settings.set("leftHanded",false) }
+        }
+    }
     @Test fun pokerBuyInCashOutAndBotTurn(){
         reset();rule.onNodeWithText("POKER").performScrollTo().performClick()
         rule.onNodeWithTag("poker-buyin").assertIsDisplayed().performClick()

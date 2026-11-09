@@ -7,7 +7,7 @@ import kotlin.math.*
 
 internal enum class CasinoSound(val seconds: Double) {
     TAP(.07), CARD(.18), SHUFFLE(.65), CHIPS(.38), DICE_SHAKE(.45), DICE_ROLL(.72),
-    MONEY(.55), LEVER(.48), TICK(.045), REEL_STOP(.16), WIN(1.8), LOSE(1.9), CLICK(.055), INVALID(.12)
+    MONEY(.55), LEVER(.48), TICK(.045), REEL_STOP(.16), WIN(1.8), LOSE(1.9), CLICK(.055), INVALID(.12), CARD_DRAW(.22), CARD_PLACE(.15)
 }
 
 /** Original, offline Foley and short musical cues. PCM avoids codec/device variations. */
@@ -33,8 +33,23 @@ internal fun casinoSoundWave(sound: CasinoSound): ByteArray {
     }
     when(sound) {
         CasinoSound.TAP -> {noise(0.0,.045,.22);tone(0.0,.07,620.0,.12)}
-        CasinoSound.CARD -> {noise(0.0,.16,.19,2.2);tone(.10,.07,230.0,.13)}
-        CasinoSound.SHUFFLE -> repeat(8){noise(it*.065,.10,.15)}
+        CasinoSound.CARD, CasinoSound.CARD_DRAW, CasinoSound.CARD_PLACE -> {
+            // Filtered paper friction followed by a short, soft felt contact.
+            val slide=if(sound==CasinoSound.CARD_PLACE) .055 else if(sound==CasinoSound.CARD_DRAW) .15 else .105
+            var low=0.0;var slow=0.0
+            for(i in samples.indices) {
+                val t=i.toDouble()/rate
+                val white=random.nextDouble()*2-1
+                low+=.34*(white-low);slow+=.065*(white-slow)
+                if(t<slide) samples[i]+=(low-slow)*.65*sin(PI*t/slide).pow(1.4)
+            }
+            noise(slide,.025,.16,4.5)
+            tone(slide,.045,125.0,.09,8.0)
+        }
+        CasinoSound.SHUFFLE -> {
+            repeat(18){i->noise(.015+i*.028,.035,.10+(i%3)*.018,3.8)}
+            noise(.53,.065,.16,3.5);tone(.54,.07,115.0,.09,8.0)
+        }
         CasinoSound.CHIPS -> repeat(4){tone(it*.065,.18,1400.0+it*190,.18);noise(it*.065,.025,.10)}
         CasinoSound.DICE_SHAKE -> repeat(8){noise(it*.049,.044,.23);tone(it*.049,.06,580.0+it%3*180,.12)}
         CasinoSound.DICE_ROLL -> listOf(0.0,.065,.15,.255,.39,.56).forEachIndexed { i,t ->
